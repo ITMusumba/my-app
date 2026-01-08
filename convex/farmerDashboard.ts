@@ -222,14 +222,14 @@ export const getPayToLockConfirmations = query({
         // Get wallet ledger entry for this lock (payment confirmation)
         let walletEntry = null;
         if (unit.lockUtid) {
-          // Store in const with explicit type to ensure type narrowing works in callback
-          // We've already checked it exists, so it's safe to use
-          const lockUtid = unit.lockUtid as string;
-          const entries = await ctx.db
+          // Store in const to ensure type narrowing works in callback
+          // TypeScript doesn't narrow optional properties inside callback closures
+          const lockUtid = unit.lockUtid;
+          const entry = await ctx.db
             .query("walletLedger")
             .withIndex("by_utid", (q: any) => q.eq("utid", lockUtid))
             .first();
-          walletEntry = entries;
+          walletEntry = entry;
         }
 
         return {
