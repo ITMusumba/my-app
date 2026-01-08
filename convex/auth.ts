@@ -85,9 +85,25 @@ export const createUser = mutation({
 });
 
 /**
+ * Infer role from email (pilot mode helper)
+ * Determines user role based on email prefix
+ */
+function inferRoleFromEmail(email: string): "farmer" | "trader" | "buyer" | "admin" {
+  const lowerEmail = email.toLowerCase();
+  if (lowerEmail.includes("admin") || lowerEmail.startsWith("admin")) return "admin";
+  if (lowerEmail.includes("farmer") || lowerEmail.startsWith("farmer")) return "farmer";
+  if (lowerEmail.includes("trader") || lowerEmail.startsWith("trader")) return "trader";
+  return "buyer";
+}
+
+/**
  * Login with email and shared pilot password
- * ⚠️ PILOT ONLY - Simple authentication for testing
- * Returns user info if credentials match
+ * ⚠️ PILOT ONLY - Auto-creates users on first login
+ * 
+ * Behavior:
+ * - Validates password against shared pilot password
+ * - Auto-creates user if they don't exist
+ * - Returns user info on success
  */
 export const login = mutation({
   args: {
@@ -95,53 +111,56 @@ export const login = mutation({
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    try {
-      // Find user by email
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_email", (q) => q.eq("email", args.email))
-        .first();
+    // Validate shared pilot password
+    if (args.password !== PILOT_SHARED_PASSWORD) {
+      throw new Error("Invalid password");
+    }
 
+    // Try to find existing user
+    let user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    // Auto-create user if missing (PILOT MODE)
+    if (!user) {
+      // Infer role from email
+      const role = inferRoleFromEmail(args.email);
+      
+      // Generate alias
+      const alias = generateAlias(role);
+      
+      // Hash the shared pilot password
+      const passwordHash = simpleHash(PILOT_SHARED_PASSWORD);
+
+      // Create user
+      const userId = await ctx.db.insert("users", {
+        email: args.email,
+        role,
+        alias,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+        passwordHash,
+      });
+
+      // Fetch the created user
+      user = await ctx.db.get(userId);
       if (!user) {
-        throw new Error("Invalid email or password. User not found. Please create test users first using pilotSetup.createPilotUsers");
+        throw new Error("Failed to create user");
       }
-
-      // Check if user has password hash (for users created before password system)
-      if (!user.passwordHash) {
-        // If user exists but has no password, set it now
-        const passwordHash = simpleHash(PILOT_SHARED_PASSWORD);
-        await ctx.db.patch(user._id, {
-          passwordHash,
-          lastActiveAt: Date.now(),
-        });
-        
-        // Check if provided password matches
-        if (args.password !== PILOT_SHARED_PASSWORD) {
-          throw new Error("Invalid email or password");
-        }
-      } else {
-        // Check password (compare hash)
-        const passwordHash = simpleHash(args.password);
-        if (user.passwordHash !== passwordHash) {
-          throw new Error("Invalid email or password");
-        }
-      }
-
-      // Update last active timestamp
+    } else {
+      // Update last active timestamp for existing user
       await ctx.db.patch(user._id, {
         lastActiveAt: Date.now(),
       });
-
-      // Return user info (alias only, not email)
-      return {
-        userId: user._id,
-        alias: user.alias,
-        role: user.role,
-      };
-    } catch (error: any) {
-      // Re-throw with more context
-      throw new Error(`Login failed: ${error.message}`);
     }
+
+    // Return user info (alias only, not email)
+    return {
+      userId: user._id,
+      alias: user.alias,
+      role: user.role,
+    };
   },
 });
 
@@ -163,20 +182,6 @@ export const getUser = query({
       alias: user.alias,
       role: user.role,
       createdAt: user.createdAt,
-    };
-  },
-});
-
-/**
- * Check if any users exist (for pilot setup)
- */
-export const checkUsersExist = query({
-  args: {},
-  handler: async (ctx) => {
-    const userCount = await ctx.db.query("users").collect();
-    return {
-      exists: userCount.length > 0,
-      count: userCount.length,
     };
   },
 });
