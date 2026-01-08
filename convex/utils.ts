@@ -72,7 +72,9 @@ export async function calculateTraderExposureInternal(
     if (unit.lockedBy === traderId) {
       const listing = await ctx.db.get(unit.listingId);
       if (listing) {
-        lockedOrdersValue += listing.pricePerKilo * 10; // 10kg per unit
+        // Use listing's unitSize (which may be less than 10kg for small listings)
+        const unitSize = listing.unitSize || 10;
+        lockedOrdersValue += listing.pricePerKilo * unitSize;
       }
     }
   }

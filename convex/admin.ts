@@ -61,7 +61,7 @@ export const openPurchaseWindow = mutation({
     // Close any existing open window
     const existing = await ctx.db
       .query("purchaseWindows")
-      .withIndex("by_status", (q) => q.eq("isOpen", true))
+      .withIndex("by_status", (q: any) => q.eq("isOpen", true))
       .first();
 
     if (existing) {
@@ -102,24 +102,23 @@ export const closePurchaseWindow = mutation({
   handler: async (ctx, args) => {
     await verifyAdmin(ctx, args.adminId);
 
-    const window = await ctx.db
+    const existing = await ctx.db
       .query("purchaseWindows")
-      .withIndex("by_status", (q) => q.eq("isOpen", true))
+      .withIndex("by_status", (q: any) => q.eq("isOpen", true))
       .first();
 
-    if (!window) {
-      throw new Error("No open purchase window found");
+    if (!existing) {
+      throw new Error("No open purchase window to close");
     }
 
     const utid = await logAdminAction(
       ctx,
       args.adminId,
       "close_purchase_window",
-      args.reason,
-      window.utid
+      args.reason
     );
 
-    await ctx.db.patch(window._id, {
+    await ctx.db.patch(existing._id, {
       isOpen: false,
       closedAt: Date.now(),
     });
@@ -129,439 +128,327 @@ export const closePurchaseWindow = mutation({
 });
 
 /**
- * Check if purchase window is open
- */
-export const isPurchaseWindowOpen = query({
-  args: {},
-  handler: async (ctx) => {
-    const window = await ctx.db
-      .query("purchaseWindows")
-      .withIndex("by_status", (q) => q.eq("isOpen", true))
-      .first();
-
-    return {
-      isOpen: !!window,
-      openedAt: window?.openedAt,
-      openedBy: window?.openedBy,
-    };
-  },
-});
-
-/**
- * Get admin action log
- */
-export const getAdminActions = query({
-  args: {
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const limit = args.limit || 50;
-    const actions = await ctx.db
-      .query("adminActions")
-      .withIndex("by_timestamp")
-      .order("desc")
-      .take(limit);
-
-    return actions.map((action) => ({
-      actionId: action._id,
-      adminId: action.adminId,
-      actionType: action.actionType,
-      utid: action.utid,
-      reason: action.reason,
-      targetUtid: action.targetUtid,
-      timestamp: action.timestamp,
-      metadata: action.metadata,
-    }));
-  },
-});
-
-/**
  * Verify delivery (admin only)
- * 
- * Admin verifies delivery outcome for a locked unit.
- * Updates deliveryStatus but does NOT reverse funds or unlock units yet.
- * 
- * This prepares for future reversal functionality by:
- * - Recording admin decision with UTID and reason
- * - Updating deliveryStatus to track outcome
- * - Maintaining audit trail for all decisions
- * 
- * Future reversals will reference this admin action UTID.
+ * Admin marks delivery as delivered, late, or cancelled
  */
 export const verifyDelivery = mutation({
   args: {
     adminId: v.id("users"),
-    lockUtid: v.string(), // UTID of the payment that locked the unit
-    outcome: v.union(
-      v.literal("delivered"),
-      v.literal("late"),
-      v.literal("cancelled")
-    ),
-    reason: v.string(), // Required reason for admin decision
+    unitId: v.id("listingUnits"),
+    outcome: v.union(v.literal("delivered"), v.literal("late"), v.literal("cancelled")),
+    reason: v.string(),
   },
   handler: async (ctx, args) => {
-    // ============================================================
-    // ADMIN AUTHORITY ENFORCEMENT
-    // ============================================================
-    // verifyAdmin checks the database to confirm user.role === "admin"
-    // This is server-side only - client claims are never trusted
     await verifyAdmin(ctx, args.adminId);
 
-    // Find unit by lockUtid
-    const unit = await ctx.db
-      .query("listingUnits")
-      .withIndex("by_lock_utid", (q) => q.eq("lockUtid", args.lockUtid))
-      .first();
-
+    const unit = await ctx.db.get(args.unitId);
     if (!unit) {
-      throw new Error(`Unit not found for lockUtid: ${args.lockUtid}`);
+      throw new Error("Unit not found");
     }
 
-    // Verify unit is in a state that can be verified
     if (unit.status !== "locked") {
-      throw new Error(
-        `Unit is not locked. Current status: ${unit.status}. ` +
-        `Only locked units can have delivery verified.`
-      );
+      throw new Error("Unit is not locked");
     }
 
-    // Prevent re-verification if already verified
-    if (unit.deliveryStatus === "delivered" && args.outcome !== "delivered") {
-      throw new Error(
-        `Unit delivery already verified as "delivered". ` +
-        `Cannot change to "${args.outcome}". Use admin override if needed.`
-      );
-    }
-
-    // ============================================================
-    // LOG ADMIN ACTION (BEFORE STATE UPDATE)
-    // ============================================================
-    // This creates an immutable audit trail of the admin decision
-    // The admin action UTID will be used to reference this decision
-    // in future reversal operations
-    const adminActionUtid = await logAdminAction(
+    const utid = await logAdminAction(
       ctx,
       args.adminId,
       "verify_delivery",
       args.reason,
-      args.lockUtid, // Target UTID: the original lock transaction
+      unit.lockUtid || undefined,
       {
-        unitId: unit._id,
+        unitId: args.unitId,
         outcome: args.outcome,
-        previousDeliveryStatus: unit.deliveryStatus,
-        deliveryDeadline: unit.deliveryDeadline,
-        lockedAt: unit.lockedAt,
+        previousStatus: unit.deliveryStatus,
       }
     );
 
-    // ============================================================
-    // UPDATE DELIVERY STATUS
-    // ============================================================
-    // This updates the deliveryStatus but does NOT:
-    // - Reverse funds (capital remains locked)
-    // - Unlock the unit (status remains "locked")
-    // - Create inventory (that happens in separate function)
-    await ctx.db.patch(unit._id, {
+    await ctx.db.patch(args.unitId, {
       deliveryStatus: args.outcome,
     });
 
-    // Get related information for response
-    const listing = await ctx.db.get(unit.listingId);
-    const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
-
-    return {
-      adminActionUtid, // UTID of this admin action (for future reversals)
-      lockUtid: args.lockUtid, // Original lock UTID
-      unitId: unit._id,
-      outcome: args.outcome,
-      deliveryStatus: args.outcome,
-      listingId: listing?._id,
-      traderId: unit.lockedBy,
-      traderAlias: trader?.alias || null,
-      verifiedAt: Date.now(),
-    };
+    return { utid, unitId: args.unitId, outcome: args.outcome };
   },
 });
 
 /**
  * Reverse delivery failure (admin only)
- * 
- * Reverses a failed delivery transaction atomically:
- * - Unlocks the unit (makes it available again)
- * - Reverses wallet ledger entry (unlocks capital)
- * - Marks transaction as failed
- * 
- * Conditions:
- * - deliveryStatus must be "late" OR "cancelled"
- * - Unit must be in "locked" status
- * 
- * All operations are atomic - either all succeed or all fail.
- * No partial state is possible.
+ * Atomic operation to reverse failed deliveries
  */
 export const reverseDeliveryFailure = mutation({
   args: {
     adminId: v.id("users"),
-    lockUtid: v.string(), // UTID of the original payment that locked the unit
-    reason: v.string(), // Required reason for reversal
+    unitId: v.id("listingUnits"),
+    reason: v.string(),
   },
   handler: async (ctx, args) => {
-    // ============================================================
-    // ADMIN AUTHORITY ENFORCEMENT
-    // ============================================================
     await verifyAdmin(ctx, args.adminId);
 
-    // ============================================================
-    // FIND UNIT BY LOCK UTID
-    // ============================================================
-    const unit = await ctx.db
-      .query("listingUnits")
-      .withIndex("by_lock_utid", (q) => q.eq("lockUtid", args.lockUtid))
-      .first();
-
+    const unit = await ctx.db.get(args.unitId);
     if (!unit) {
-      throw new Error(`Unit not found for lockUtid: ${args.lockUtid}`);
+      throw new Error("Unit not found");
     }
 
-    // ============================================================
-    // VALIDATE CONDITIONS
-    // ============================================================
-    // Condition 1: Unit must be locked
-    if (unit.status !== "locked") {
-      throw new Error(
-        `Unit is not locked. Current status: ${unit.status}. ` +
-        `Only locked units can be reversed.`
-      );
+    if (!unit.lockUtid) {
+      throw new Error("Unit has no lock UTID");
     }
 
-    // Condition 2: Delivery status must be "late" OR "cancelled"
-    if (unit.deliveryStatus !== "late" && unit.deliveryStatus !== "cancelled") {
-      throw new Error(
-        `Delivery status must be "late" or "cancelled" to reverse. ` +
-        `Current status: ${unit.deliveryStatus || "pending"}. ` +
-        `Use verifyDelivery first to mark delivery as failed.`
-      );
+    const deliveryStatus = unit.deliveryStatus;
+    if (deliveryStatus !== "late" && deliveryStatus !== "cancelled") {
+      throw new Error("Unit must be late or cancelled to reverse");
     }
 
-    // ============================================================
-    // FIND WALLET LEDGER ENTRY
-    // ============================================================
-    const walletEntry = await ctx.db
-      .query("walletLedger")
-      .withIndex("by_utid", (q) => q.eq("utid", args.lockUtid))
-      .first();
-
-    if (!walletEntry) {
-      throw new Error(`Wallet ledger entry not found for lockUtid: ${args.lockUtid}`);
+    const listing = await ctx.db.get(unit.listingId);
+    if (!listing) {
+      throw new Error("Listing not found");
     }
 
-    // Verify it's a capital_lock entry
-    if (walletEntry.type !== "capital_lock") {
-      throw new Error(
-        `Wallet entry is not a capital_lock. Type: ${walletEntry.type}. ` +
-        `Cannot reverse non-lock entries.`
-      );
+    const traderId = unit.lockedBy;
+    if (!traderId) {
+      throw new Error("Unit has no lockedBy trader");
     }
 
-    // ============================================================
-    // GENERATE REVERSAL UTID
-    // ============================================================
-    // This UTID will reference the original lockUtid and be used
-    // to track the reversal in the audit trail
-    const reversalUtid = generateUTID("admin");
+    // Calculate refund amount
+    const unitPrice = listing.pricePerKilo * (unit.unitSize || 10);
 
-    // ============================================================
-    // ATOMIC OPERATION: ALL STEPS IN ONE MUTATION
-    // ============================================================
-    // Convex guarantees that all operations in a mutation are atomic.
-    // If any step fails, the entire mutation rolls back.
-    // No partial state is possible.
+    // Generate UTID for reversal
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "reverse_delivery_failure",
+      args.reason,
+      unit.lockUtid,
+      {
+        unitId: args.unitId,
+        unitPrice,
+        deliveryStatus,
+      }
+    );
 
-    // Step 1: Calculate new wallet balance after unlock
-    const currentBalance = walletEntry.balanceAfter;
-    const unlockAmount = walletEntry.amount;
-    const newBalance = currentBalance + unlockAmount; // Unlock adds back to balance
-
-    // Step 2: Create capital_unlock ledger entry
-    // This reverses the original capital_lock entry
-    await ctx.db.insert("walletLedger", {
-      userId: walletEntry.userId,
-      utid: reversalUtid, // New UTID for this reversal
-      type: "capital_unlock",
-      amount: unlockAmount,
-      balanceAfter: newBalance,
-      timestamp: Date.now(),
-      metadata: {
-        originalLockUtid: args.lockUtid,
-        unitId: unit._id,
-        reason: args.reason,
-        originalLockAmount: unlockAmount,
-      },
-    });
-
-    // Step 3: Unlock the unit
-    // Clear all lock-related fields and set status to available
-    await ctx.db.patch(unit._id, {
+    // ATOMIC OPERATION: Unlock unit and reverse wallet entry
+    // Step 1: Unlock the unit
+    await ctx.db.patch(args.unitId, {
       status: "available",
       lockedBy: undefined,
       lockedAt: undefined,
       lockUtid: undefined,
       deliveryDeadline: undefined,
-      deliveryStatus: undefined, // Clear delivery status
+      deliveryStatus: undefined,
     });
 
-    // Step 4: Update listing status if needed
-    // If all units in listing are now available, update listing status
-    const listing = await ctx.db.get(unit.listingId);
-    if (listing) {
-      const allUnits = await ctx.db
-        .query("listingUnits")
-        .withIndex("by_listing", (q) => q.eq("listingId", listing._id))
-        .collect();
+    // Step 2: Reverse wallet ledger entry (unlock capital)
+    const walletEntries = await ctx.db
+      .query("walletLedger")
+      .withIndex("by_user", (q: any) => q.eq("userId", traderId))
+      .order("desc")
+      .first();
 
-      const lockedCount = allUnits.filter((u) => u.status === "locked").length;
-      const availableCount = allUnits.filter((u) => u.status === "available").length;
+    const currentBalance = walletEntries?.balanceAfter || 0;
+    const balanceAfter = currentBalance + unitPrice;
 
-      // If no units are locked, listing should be active again
-      if (lockedCount === 0 && availableCount > 0) {
-        await ctx.db.patch(listing._id, {
-          status: "active",
-          deliverySLA: 0, // Clear delivery SLA
-        });
-      }
+    await ctx.db.insert("walletLedger", {
+      userId: traderId,
+      utid,
+      type: "capital_unlock",
+      amount: unitPrice,
+      balanceAfter,
+      timestamp: Date.now(),
+      metadata: {
+        unitId: args.unitId,
+        listingId: listing._id,
+        reversedLockUtid: unit.lockUtid,
+        reason: args.reason,
+      },
+    });
+
+    // Step 3: Update listing status if needed
+    const allUnits = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_listing", (q: any) => q.eq("listingId", listing._id))
+      .collect();
+
+    const availableCount = allUnits.filter((u: any) => u.status === "available").length;
+    const lockedCount = allUnits.filter((u: any) => u.status === "locked").length;
+
+    if (availableCount > 0 && lockedCount === 0) {
+      await ctx.db.patch(listing._id, {
+        status: "active",
+      });
+    } else if (lockedCount > 0) {
+      await ctx.db.patch(listing._id, {
+        status: "partially_locked",
+      });
     }
 
-    // Step 5: Log admin action
-    // This creates an immutable audit trail of the reversal
-    const adminActionUtid = await logAdminAction(
-      ctx,
-      args.adminId,
-      "reverse_delivery_failure",
-      args.reason,
-      args.lockUtid, // Target UTID: original lock transaction
-      {
-        unitId: unit._id,
-        reversalUtid: reversalUtid,
-        originalLockAmount: unlockAmount,
-        deliveryStatus: unit.deliveryStatus,
-        listingId: listing?._id,
-      }
-    );
-
-    // Get trader information for response
-    const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
-
     return {
-      reversalUtid, // UTID of the capital_unlock ledger entry
-      adminActionUtid, // UTID of the admin action log entry
-      lockUtid: args.lockUtid, // Original lock UTID
-      unitId: unit._id,
-      listingId: listing?._id,
-      traderId: unit.lockedBy,
-      traderAlias: trader?.alias || null,
-      amountUnlocked: unlockAmount,
-      newBalance: newBalance,
-      reversedAt: Date.now(),
+      utid,
+      unitId: args.unitId,
+      refundAmount: unitPrice,
+      balanceAfter,
     };
   },
 });
 
 /**
- * Get delivery SLA status (admin only)
+ * Reset all transactions (admin only)
  * 
- * Returns all units with pending or late delivery status.
- * All time calculations are done server-side (no client-side time logic).
+ * ⚠️ DANGEROUS OPERATION - Use with extreme caution
+ * 
+ * This mutation resets the entire system state:
+ * - Clears all wallet ledger entries
+ * - Unlocks all locked units
+ * - Resets all inventory
+ * - Resets all buyer purchases
+ * - Resets listing statuses to active
+ * - Keeps users and system settings
+ * 
+ * All actions are logged with UTID and reason.
  */
-export const getDeliverySLAStatus = query({
+export const resetAllTransactions = mutation({
   args: {
     adminId: v.id("users"),
-    status: v.optional(v.union(
-      v.literal("pending"),
-      v.literal("late"),
-      v.literal("delivered")
-    )),
+    reason: v.string(), // Required reason for reset
   },
   handler: async (ctx, args) => {
-    // Verify admin
     await verifyAdmin(ctx, args.adminId);
 
-    const now = Date.now();
-    
-    // Get all locked units with delivery status
-    const allLockedUnits = await ctx.db
-      .query("listingUnits")
-      .withIndex("by_status", (q) => q.eq("status", "locked"))
-      .collect();
-
-    // Filter by delivery status and calculate SLA status
-    const unitsWithSLA = await Promise.all(
-      allLockedUnits
-        .filter((unit) => {
-          // Filter by requested status, or show all if not specified
-          if (args.status) {
-            return unit.deliveryStatus === args.status;
-          }
-          // Default: show pending and late (not delivered)
-          return unit.deliveryStatus === "pending" || unit.deliveryStatus === "late";
-        })
-        .map(async (unit) => {
-          const listing = await ctx.db.get(unit.listingId);
-          const farmer = listing ? await ctx.db.get(listing.farmerId) : null;
-          const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
-
-          // Server-side time calculation
-          const isPastDeadline = unit.deliveryDeadline 
-            ? now > unit.deliveryDeadline 
-            : false;
-          
-          const hoursRemaining = unit.deliveryDeadline
-            ? Math.max(0, (unit.deliveryDeadline - now) / (1000 * 60 * 60))
-            : null;
-
-          const hoursOverdue = unit.deliveryDeadline && isPastDeadline
-            ? (now - unit.deliveryDeadline) / (1000 * 60 * 60)
-            : 0;
-
-          return {
-            unitId: unit._id,
-            unitNumber: unit.unitNumber,
-            listingId: unit.listingId,
-            lockUtid: unit.lockUtid,
-            lockedAt: unit.lockedAt,
-            deliveryDeadline: unit.deliveryDeadline,
-            deliveryStatus: unit.deliveryStatus,
-            // Server-calculated time information
-            isPastDeadline,
-            hoursRemaining: hoursRemaining !== null ? Math.round(hoursRemaining * 100) / 100 : null,
-            hoursOverdue: Math.round(hoursOverdue * 100) / 100,
-            // Related information
-            listing: listing ? {
-              listingId: listing._id,
-              utid: listing.utid,
-              produceType: listing.produceType,
-              pricePerKilo: listing.pricePerKilo,
-            } : null,
-            farmerAlias: farmer?.alias || null,
-            traderAlias: trader?.alias || null,
-          };
-        })
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "reset_all_transactions",
+      args.reason,
+      undefined,
+      {
+        timestamp: Date.now(),
+        warning: "All transactions have been reset",
+      }
     );
 
-    // Sort by deadline (earliest first, then overdue first)
-    unitsWithSLA.sort((a, b) => {
-      if (!a.deliveryDeadline) return 1;
-      if (!b.deliveryDeadline) return -1;
-      return a.deliveryDeadline - b.deliveryDeadline;
-    });
-
-    return {
-      units: unitsWithSLA,
-      summary: {
-        total: unitsWithSLA.length,
-        pending: unitsWithSLA.filter((u) => u.deliveryStatus === "pending" && !u.isPastDeadline).length,
-        late: unitsWithSLA.filter((u) => u.isPastDeadline).length,
-        delivered: unitsWithSLA.filter((u) => u.deliveryStatus === "delivered").length,
-      },
-      currentTime: now,
+    const results = {
+      walletLedgerEntriesDeleted: 0,
+      unitsUnlocked: 0,
+      inventoryDeleted: 0,
+      buyerPurchasesDeleted: 0,
+      listingsReset: 0,
+      errors: [] as string[],
     };
+
+    try {
+      // 1. Delete all wallet ledger entries
+      const walletEntries = await ctx.db.query("walletLedger").collect();
+      for (const entry of walletEntries) {
+        try {
+          await ctx.db.delete(entry._id);
+          results.walletLedgerEntriesDeleted++;
+        } catch (error: any) {
+          results.errors.push(`Failed to delete wallet entry ${entry._id}: ${error.message}`);
+        }
+      }
+
+      // 2. Unlock all locked units
+      const lockedUnits = await ctx.db
+        .query("listingUnits")
+        .withIndex("by_status", (q: any) => q.eq("status", "locked"))
+        .collect();
+      
+      for (const unit of lockedUnits) {
+        try {
+          await ctx.db.patch(unit._id, {
+            status: "available",
+            lockedBy: undefined,
+            lockedAt: undefined,
+            lockUtid: undefined,
+            deliveryDeadline: undefined,
+            deliveryStatus: undefined,
+          });
+          results.unitsUnlocked++;
+        } catch (error: any) {
+          results.errors.push(`Failed to unlock unit ${unit._id}: ${error.message}`);
+        }
+      }
+
+      // 3. Delete all trader inventory
+      const inventory = await ctx.db.query("traderInventory").collect();
+      for (const inv of inventory) {
+        try {
+          await ctx.db.delete(inv._id);
+          results.inventoryDeleted++;
+        } catch (error: any) {
+          results.errors.push(`Failed to delete inventory ${inv._id}: ${error.message}`);
+        }
+      }
+
+      // 4. Delete all buyer purchases
+      const purchases = await ctx.db.query("buyerPurchases").collect();
+      for (const purchase of purchases) {
+        try {
+          await ctx.db.delete(purchase._id);
+          results.buyerPurchasesDeleted++;
+        } catch (error: any) {
+          results.errors.push(`Failed to delete purchase ${purchase._id}: ${error.message}`);
+        }
+      }
+
+      // 5. Reset all listing statuses to active
+      const listings = await ctx.db.query("listings").collect();
+      for (const listing of listings) {
+        try {
+          await ctx.db.patch(listing._id, {
+            status: "active",
+            deliverySLA: 0,
+          });
+          results.listingsReset++;
+        } catch (error: any) {
+          results.errors.push(`Failed to reset listing ${listing._id}: ${error.message}`);
+        }
+      }
+
+      // 6. Reset all delivered/cancelled units to available
+      const deliveredUnits = await ctx.db
+        .query("listingUnits")
+        .withIndex("by_status", (q: any) => q.eq("status", "delivered"))
+        .collect();
+      
+      const cancelledUnits = await ctx.db
+        .query("listingUnits")
+        .withIndex("by_status", (q: any) => q.eq("status", "cancelled"))
+        .collect();
+
+      for (const unit of [...deliveredUnits, ...cancelledUnits]) {
+        try {
+          await ctx.db.patch(unit._id, {
+            status: "available",
+            lockedBy: undefined,
+            lockedAt: undefined,
+            lockUtid: undefined,
+            deliveryDeadline: undefined,
+            deliveryStatus: undefined,
+          });
+        } catch (error: any) {
+          results.errors.push(`Failed to reset unit ${unit._id}: ${error.message}`);
+        }
+      }
+
+      return {
+        success: true,
+        utid,
+        results,
+        summary: {
+          totalWalletEntriesDeleted: results.walletLedgerEntriesDeleted,
+          totalUnitsUnlocked: results.unitsUnlocked,
+          totalInventoryDeleted: results.inventoryDeleted,
+          totalPurchasesDeleted: results.buyerPurchasesDeleted,
+          totalListingsReset: results.listingsReset,
+          totalErrors: results.errors.length,
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        utid,
+        error: error.message,
+        results,
+      };
+    }
   },
 });

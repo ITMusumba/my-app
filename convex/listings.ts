@@ -64,11 +64,17 @@ export const createListing = mutation({
     // Generate UTID
     const utid = generateUTID(user.role);
 
-    // Calculate units (10kg each)
-    const totalUnits = Math.floor(args.totalKilos / LISTING_UNIT_SIZE_KG);
-    if (totalUnits === 0) {
-      throw new Error(`Total kilos must be at least ${LISTING_UNIT_SIZE_KG}kg`);
-    }
+    // Calculate units (10kg each, but allow any positive number of kilos)
+    // If totalKilos < 10kg, create 1 unit with the actual weight
+    // Otherwise, create units of 10kg each
+    const totalUnits = args.totalKilos < LISTING_UNIT_SIZE_KG 
+      ? 1 
+      : Math.floor(args.totalKilos / LISTING_UNIT_SIZE_KG);
+    
+    // Unit size: use actual weight if < 10kg, otherwise 10kg
+    const actualUnitSize = args.totalKilos < LISTING_UNIT_SIZE_KG 
+      ? args.totalKilos 
+      : LISTING_UNIT_SIZE_KG;
 
     // Create listing
     const listingId = await ctx.db.insert("listings", {
@@ -77,7 +83,7 @@ export const createListing = mutation({
       produceType: args.produceType,
       totalKilos: args.totalKilos,
       pricePerKilo: args.pricePerKilo,
-      unitSize: LISTING_UNIT_SIZE_KG,
+      unitSize: actualUnitSize, // Store actual unit size (10kg or less)
       totalUnits,
       status: "active",
       createdAt: Date.now(),
@@ -86,13 +92,22 @@ export const createListing = mutation({
 
     // Create individual units
     const unitIds = [];
+    let remainingKilos = args.totalKilos;
+    
     for (let i = 1; i <= totalUnits; i++) {
+      // Calculate unit size: last unit gets remaining kilos if not exactly divisible
+      let unitKilos = LISTING_UNIT_SIZE_KG;
+      if (i === totalUnits && remainingKilos < LISTING_UNIT_SIZE_KG) {
+        unitKilos = remainingKilos; // Last unit gets remaining kilos
+      }
+      
       const unitId = await ctx.db.insert("listingUnits", {
         listingId,
         unitNumber: i,
         status: "available",
       });
       unitIds.push(unitId);
+      remainingKilos -= unitKilos;
     }
 
     return { listingId, utid, totalUnits, unitIds };

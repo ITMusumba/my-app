@@ -61,7 +61,9 @@ async function lockUnitInternal(
     throw new Error("Listing not found");
   }
 
-  const unitPrice = listing.pricePerKilo * LISTING_UNIT_SIZE_KG;
+  // Use listing's unitSize (which may be less than 10kg for small listings)
+  const unitSize = listing.unitSize || LISTING_UNIT_SIZE_KG;
+  const unitPrice = listing.pricePerKilo * unitSize;
 
   // Spend cap enforcement
   const exposure = await calculateTraderExposureInternal(ctx, traderId);
