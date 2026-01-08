@@ -2,6 +2,8 @@
 
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * Farm2Market Uganda - Pilot Dashboard
@@ -12,21 +14,35 @@ import { api } from "../convex/_generated/api";
  */
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  
+  // Check if user is logged in (pilot mode)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("pilot_user");
+      if (stored) {
+        setUser(JSON.parse(stored));
+      } else {
+        // Redirect to login if not logged in
+        router.push("/login");
+      }
+    }
+  }, [router]);
+
   // Diagnostic: Check if Convex URL is available at runtime
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   
-  // Diagnostic: Log the query attempt
-  console.log("Attempting to query pilotMode:", {
-    hasApi: !!api,
-    hasPilotMode: !!(api as any).pilotMode,
-    hasGetPilotMode: !!(api as any).pilotMode?.getPilotMode,
-    convexUrl
-  });
-  
   const pilotMode = useQuery(api.pilotMode.getPilotMode);
   
-  // Diagnostic: Log query result
-  console.log("Pilot mode query result:", pilotMode);
+  // Show loading if checking auth
+  if (!user) {
+    return (
+      <main style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Loading...</p>
+      </main>
+    );
+  }
 
   // Format timestamp to readable date
   const formatDate = (timestamp: number | null) => {
@@ -55,13 +71,39 @@ export default function Home() {
       margin: "0 auto",
       fontFamily: "system-ui, -apple-system, sans-serif"
     }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem", color: "#1a1a1a" }}>
-          Farm2Market Uganda
-        </h1>
-        <p style={{ color: "#666", fontSize: "1.1rem" }}>
-          Controlled, negotiation-driven agricultural trading platform
-        </p>
+      <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem", color: "#1a1a1a" }}>
+            Farm2Market Uganda
+          </h1>
+          <p style={{ color: "#666", fontSize: "1.1rem" }}>
+            Controlled, negotiation-driven agricultural trading platform
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: "#666", fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+            Logged in as: <strong>{user.alias}</strong>
+          </p>
+          <p style={{ color: "#999", fontSize: "0.85rem", marginBottom: "0.25rem" }}>
+            Role: {user.role}
+          </p>
+          <button
+            onClick={() => {
+              localStorage.removeItem("pilot_user");
+              router.push("/login");
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#f5f5f5",
+              border: "1px solid #ddd",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem"
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Diagnostic: Convex URL Check */}

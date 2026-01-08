@@ -26,6 +26,8 @@ export default defineSchema({
     alias: v.string(), // System-generated, stable, non-identifying
     createdAt: v.number(),
     lastActiveAt: v.number(),
+    // Pilot mode: shared password for all test users
+    passwordHash: v.optional(v.string()), // Simple hash for pilot (not production-grade)
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])

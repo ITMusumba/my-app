@@ -45,3 +45,10 @@ export const RATE_LIMITS = {
   // Buyer limits
   BUYER_PURCHASES_PER_HOUR: 5, // Max purchases per hour
 } as const;
+
+/**
+ * Pilot Mode: Shared Password for All Test Users
+ * ⚠️ PILOT ONLY - This is NOT secure for production
+ * All test users share this password during pilot phase
+ */
+export const PILOT_SHARED_PASSWORD = "Farm2Market2024";

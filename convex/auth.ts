@@ -10,6 +10,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { PILOT_SHARED_PASSWORD } from "./constants";
 
 /**
  * Generate a stable, non-identifying alias for a user
@@ -22,9 +23,25 @@ function generateAlias(role: string): string {
 }
 
 /**
+ * Simple hash function for pilot password (NOT production-grade)
+ * ⚠️ PILOT ONLY - Use proper password hashing in production
+ */
+function simpleHash(password: string): string {
+  // Simple hash for pilot - NOT secure, just for testing
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+}
+
+/**
  * Create a new user with a role
  * - Exactly one role per user (enforced by schema)
  * - Auto-generates alias for anonymity
+ * - Sets shared pilot password hash
  */
 export const createUser = mutation({
   args: {
@@ -50,6 +67,9 @@ export const createUser = mutation({
     // Generate alias
     const alias = generateAlias(args.role);
 
+    // Hash the shared pilot password
+    const passwordHash = simpleHash(PILOT_SHARED_PASSWORD);
+
     // Create user
     const userId = await ctx.db.insert("users", {
       email: args.email,
@@ -57,9 +77,51 @@ export const createUser = mutation({
       alias,
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
+      passwordHash,
     });
 
     return { userId, alias };
+  },
+});
+
+/**
+ * Login with email and shared pilot password
+ * ⚠️ PILOT ONLY - Simple authentication for testing
+ * Returns user info if credentials match
+ */
+export const login = mutation({
+  args: {
+    email: v.string(),
+    password: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find user by email
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Check password (compare hash)
+    const passwordHash = simpleHash(args.password);
+    if (user.passwordHash !== passwordHash) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Update last active timestamp
+    await ctx.db.patch(user._id, {
+      lastActiveAt: Date.now(),
+    });
+
+    // Return user info (alias only, not email)
+    return {
+      userId: user._id,
+      alias: user.alias,
+      role: user.role,
+    };
   },
 });
 
