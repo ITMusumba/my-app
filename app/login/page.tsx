@@ -37,7 +37,13 @@ export default function LoginPage() {
       // Redirect to dashboard
       router.push("/");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      const errorMessage = err.message || "Login failed";
+      // Provide helpful error message
+      if (errorMessage.includes("User not found") || errorMessage.includes("Invalid email")) {
+        setError(`${errorMessage}. Make sure test users are created first using the pilotSetup.createPilotUsers mutation.`);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

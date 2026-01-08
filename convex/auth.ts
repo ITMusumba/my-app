@@ -95,33 +95,53 @@ export const login = mutation({
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find user by email
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
+    try {
+      // Find user by email
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", args.email))
+        .first();
 
-    if (!user) {
-      throw new Error("Invalid email or password");
+      if (!user) {
+        throw new Error("Invalid email or password. User not found. Please create test users first using pilotSetup.createPilotUsers");
+      }
+
+      // Check if user has password hash (for users created before password system)
+      if (!user.passwordHash) {
+        // If user exists but has no password, set it now
+        const passwordHash = simpleHash(PILOT_SHARED_PASSWORD);
+        await ctx.db.patch(user._id, {
+          passwordHash,
+          lastActiveAt: Date.now(),
+        });
+        
+        // Check if provided password matches
+        if (args.password !== PILOT_SHARED_PASSWORD) {
+          throw new Error("Invalid email or password");
+        }
+      } else {
+        // Check password (compare hash)
+        const passwordHash = simpleHash(args.password);
+        if (user.passwordHash !== passwordHash) {
+          throw new Error("Invalid email or password");
+        }
+      }
+
+      // Update last active timestamp
+      await ctx.db.patch(user._id, {
+        lastActiveAt: Date.now(),
+      });
+
+      // Return user info (alias only, not email)
+      return {
+        userId: user._id,
+        alias: user.alias,
+        role: user.role,
+      };
+    } catch (error: any) {
+      // Re-throw with more context
+      throw new Error(`Login failed: ${error.message}`);
     }
-
-    // Check password (compare hash)
-    const passwordHash = simpleHash(args.password);
-    if (user.passwordHash !== passwordHash) {
-      throw new Error("Invalid email or password");
-    }
-
-    // Update last active timestamp
-    await ctx.db.patch(user._id, {
-      lastActiveAt: Date.now(),
-    });
-
-    // Return user info (alias only, not email)
-    return {
-      userId: user._id,
-      alias: user.alias,
-      role: user.role,
-    };
   },
 });
 
@@ -143,6 +163,20 @@ export const getUser = query({
       alias: user.alias,
       role: user.role,
       createdAt: user.createdAt,
+    };
+  },
+});
+
+/**
+ * Check if any users exist (for pilot setup)
+ */
+export const checkUsersExist = query({
+  args: {},
+  handler: async (ctx) => {
+    const userCount = await ctx.db.query("users").collect();
+    return {
+      exists: userCount.length > 0,
+      count: userCount.length,
     };
   },
 });
