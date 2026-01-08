@@ -11,6 +11,7 @@ import { mutation, query } from "./_generated/server";
 import { generateUTID } from "./utils";
 import { LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
+import { checkRateLimit } from "./rateLimits";
 
 /**
  * Create a listing (farmer only)
@@ -36,6 +37,16 @@ export const createListing = mutation({
     if (!user || user.role !== "farmer") {
       throw new Error("User is not a farmer");
     }
+
+    // ============================================================
+    // RATE LIMIT CHECK (BEFORE OPERATIONS)
+    // ============================================================
+    // Check if farmer has exceeded listing creation rate limit.
+    // This prevents spam and manipulation attempts.
+    await checkRateLimit(ctx, args.farmerId, user.role, "create_listing", {
+      produceType: args.produceType,
+      totalKilos: args.totalKilos,
+    });
 
     if (args.totalKilos <= 0 || args.pricePerKilo <= 0) {
       throw new Error("Kilos and price must be positive");

@@ -12,6 +12,7 @@ import { mutation } from "./_generated/server";
 import { generateUTID } from "./utils";
 import { calculatePickupSLA } from "./utils";
 import { checkPilotMode } from "./pilotMode";
+import { checkRateLimit } from "./rateLimits";
 
 /**
  * Create buyer purchase (buyer only)
@@ -67,6 +68,16 @@ export const createBuyerPurchase = mutation({
     if (!user || user.role !== "buyer") {
       throw new Error("User is not a buyer");
     }
+
+    // ============================================================
+    // RATE LIMIT CHECK (BEFORE OPERATIONS)
+    // ============================================================
+    // Check if buyer has exceeded purchase rate limit.
+    // This prevents spam and manipulation attempts.
+    await checkRateLimit(ctx, args.buyerId, user.role, "create_purchase", {
+      inventoryId: args.inventoryId,
+      kilos: args.kilos,
+    });
 
     if (args.kilos <= 0) {
       throw new Error("Kilos must be positive");

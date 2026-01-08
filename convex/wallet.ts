@@ -13,6 +13,7 @@ import { mutation, query } from "./_generated/server";
 import { generateUTID, calculateTraderExposureInternal } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 import { checkPilotMode } from "./pilotMode";
+import { checkRateLimit } from "./rateLimits";
 
 /**
  * Get wallet balance for a trader
@@ -140,6 +141,15 @@ export const withdrawProfit = mutation({
     if (!user || user.role !== "trader") {
       throw new Error("User is not a trader");
     }
+
+    // ============================================================
+    // RATE LIMIT CHECK (BEFORE OPERATIONS)
+    // ============================================================
+    // Check if trader has exceeded wallet operations rate limit.
+    // This prevents spam and manipulation attempts.
+    await checkRateLimit(ctx, args.traderId, user.role, "withdraw_profit", {
+      amount: args.amount,
+    });
 
     if (args.amount <= 0) {
       throw new Error("Amount must be positive");

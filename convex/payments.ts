@@ -14,6 +14,7 @@ import { generateUTID, calculateTraderExposureInternal } from "./utils";
 import { calculateDeliverySLA } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
+import { checkRateLimit } from "./rateLimits";
 
 /**
  * Lock a unit by payment (trader only)
@@ -46,6 +47,15 @@ export const lockUnit = mutation({
     if (!user || user.role !== "trader") {
       throw new Error("User is not a trader");
     }
+
+    // ============================================================
+    // RATE LIMIT CHECK (BEFORE OPERATIONS)
+    // ============================================================
+    // Check if trader has exceeded negotiation rate limit.
+    // This prevents spam and manipulation attempts.
+    await checkRateLimit(ctx, args.traderId, user.role, "lock_unit", {
+      unitId: args.unitId,
+    });
 
     // Get unit and verify it's available
     const unit = await ctx.db.get(args.unitId);

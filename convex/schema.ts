@@ -249,4 +249,28 @@ export default defineSchema({
     reason: v.string(), // Reason for setting flag
     utid: v.string(), // Admin action UTID
   }),
+
+  /**
+   * Rate limit hits log
+   * - Tracks all rate limit violations
+   * - Admin-visible for monitoring and investigation
+   * - Used to detect spam and manipulation attempts
+   */
+  rateLimitHits: defineTable({
+    userId: v.id("users"),
+    userRole: v.union(v.literal("farmer"), v.literal("trader"), v.literal("buyer"), v.literal("admin")),
+    actionType: v.string(), // e.g., "lock_unit", "create_listing", "create_purchase"
+    limitType: v.string(), // e.g., "negotiations_per_hour", "listings_per_day"
+    limitValue: v.number(), // The limit that was exceeded
+    attemptedAt: v.number(), // Timestamp of the attempt
+    windowStart: v.number(), // Start of the rate limit window
+    windowEnd: v.number(), // End of the rate limit window
+    currentCount: v.number(), // Current count in the window
+    metadata: v.optional(v.any()), // Additional context
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_role", ["userRole"])
+    .index("by_action_type", ["actionType"])
+    .index("by_timestamp", ["attemptedAt"])
+    .index("by_user_timestamp", ["userId", "attemptedAt"]),
 });

@@ -27,3 +27,21 @@ export const BUYER_PICKUP_SLA_MS = 48 * 60 * 60 * 1000; // 48 hours
  * Default: 0.5 kilos per day per 100kg block
  */
 export const DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY = 0.5;
+
+/**
+ * Rate limits (soft limits per role)
+ * - These are soft limits to discourage spam and manipulation
+ * - Exceeding limits fails gracefully with logged rate limit hits
+ * - Limits can be adjusted by admin via system settings
+ */
+export const RATE_LIMITS = {
+  // Trader limits
+  TRADER_NEGOTIATIONS_PER_HOUR: 20, // Max unit locks per hour
+  TRADER_WALLET_OPERATIONS_PER_HOUR: 10, // Max deposits/withdrawals per hour
+  
+  // Farmer limits
+  FARMER_LISTINGS_PER_DAY: 10, // Max listings created per day
+  
+  // Buyer limits
+  BUYER_PURCHASES_PER_HOUR: 5, // Max purchases per hour
+} as const;
