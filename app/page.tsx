@@ -1,18 +1,8 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
-
-// Type-safe access to pilotMode query
-// This will work once Convex regenerates the API after deployment
-type PilotModeStatus = {
-  pilotMode: boolean;
-  setBy: string | null;
-  setAt: number | null;
-  reason: string | null;
-  utid: string | null;
-};
+import { PilotModeStatusComponent } from "./components/PilotModeStatus";
 
 /**
  * Farm2Market Uganda - Pilot Dashboard
@@ -28,34 +18,10 @@ export default function Home() {
   
   // Safely check if pilotMode module exists in API
   const pilotModeQuery = (api as any).pilotMode?.getPilotMode;
-  
-  // Query pilot mode - must call useQuery unconditionally (React hooks rule)
-  // Pass undefined if module doesn't exist - useQuery handles this gracefully
-  const pilotMode = useQuery(pilotModeQuery || undefined) as PilotModeStatus | undefined;
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Format timestamp to readable date
-  const formatDate = (timestamp: number | null) => {
-    if (!timestamp) return "N/A";
-    return new Date(timestamp).toLocaleString();
-  };
-
-  // Format time ago
-  const formatTimeAgo = (timestamp: number | null) => {
-    if (!timestamp) return "N/A";
-    const now = Date.now();
-    const diff = now - timestamp;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours} hour${hours > 1 ? "s" : ""} ago`;
-    }
-    return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
-  };
 
   return (
     <main style={{ 
@@ -94,75 +60,8 @@ export default function Home() {
               ⚠️ Convex API not fully generated. Please run <code style={{ background: "#f5f5f5", padding: "2px 6px", borderRadius: "4px" }}>npx convex deploy</code> to regenerate the API.
             </p>
           </div>
-        ) : pilotMode === undefined ? (
-          <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
-            <p style={{ margin: 0, color: "#856404" }}>
-              ⚠️ Connecting to Convex... Please wait.
-            </p>
-          </div>
         ) : (
-          <div>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-              marginBottom: "1rem"
-            }}>
-              <div style={{
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                background: pilotMode.pilotMode ? "#ff4444" : "#4caf50",
-                boxShadow: pilotMode.pilotMode ? "0 0 8px rgba(255,68,68,0.5)" : "0 0 8px rgba(76,175,80,0.5)"
-              }} />
-              <span style={{
-                fontSize: "1.2rem",
-                fontWeight: "600",
-                color: pilotMode.pilotMode ? "#d32f2f" : "#2e7d32"
-              }}>
-                {pilotMode.pilotMode ? "PILOT MODE ACTIVE" : "PILOT MODE INACTIVE"}
-              </span>
-            </div>
-
-            {pilotMode.pilotMode && (
-              <div style={{
-                marginTop: "1rem",
-                padding: "1rem",
-                background: "#ffebee",
-                borderRadius: "8px",
-                border: "1px solid #ef5350"
-              }}>
-                <p style={{ margin: "0 0 0.5rem 0", fontWeight: "600", color: "#c62828" }}>
-                  ⚠️ All money and inventory mutations are blocked
-                </p>
-                <p style={{ margin: 0, color: "#666", fontSize: "0.9rem" }}>
-                  Reason: {pilotMode.reason || "No reason provided"}
-                </p>
-                <p style={{ margin: "0.5rem 0 0 0", color: "#666", fontSize: "0.85rem" }}>
-                  Set at: {formatDate(pilotMode.setAt)} ({formatTimeAgo(pilotMode.setAt)})
-                </p>
-                {pilotMode.utid && (
-                  <p style={{ margin: "0.5rem 0 0 0", color: "#999", fontSize: "0.8rem", fontFamily: "monospace" }}>
-                    UTID: {pilotMode.utid}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {!pilotMode.pilotMode && (
-              <div style={{
-                marginTop: "1rem",
-                padding: "1rem",
-                background: "#e8f5e9",
-                borderRadius: "8px",
-                border: "1px solid #4caf50"
-              }}>
-                <p style={{ margin: 0, color: "#2e7d32" }}>
-                  ✅ System is operational. All mutations are allowed.
-                </p>
-              </div>
-            )}
-          </div>
+          <PilotModeStatusComponent query={pilotModeQuery} />
         )}
       </div>
 
@@ -182,7 +81,7 @@ export default function Home() {
             <strong>Platform:</strong> Farm2Market Uganda v1
           </p>
           <p style={{ margin: "0.5rem 0" }}>
-            <strong>Status:</strong> {mounted && pilotMode !== undefined ? "Connected" : "Not Connected"}
+            <strong>Status:</strong> {mounted && pilotModeQuery ? "Connected" : "Not Connected"}
           </p>
           <p style={{ margin: "0.5rem 0" }}>
             <strong>Backend:</strong> Convex
