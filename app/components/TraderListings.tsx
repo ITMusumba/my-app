@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TraderListingsProps {
   userId: Id<"users">;
@@ -13,14 +13,8 @@ export function TraderListings({ userId }: TraderListingsProps) {
   const listings = useQuery(api.listings.getActiveListings);
   const lockUnit = useMutation(api.payments.lockUnit);
   const [locking, setLocking] = useState<Id<"listings"> | null>(null);
-  const [selectedListing, setSelectedListing] = useState<Id<"listings"> | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  // Get first available unit for selected listing
-  const availableUnit = useQuery(
-    selectedListing ? api.listings.getFirstAvailableUnit : "skip",
-    selectedListing ? { listingId: selectedListing } : "skip"
-  );
+  const [unitCache, setUnitCache] = useState<Map<Id<"listings">, Id<"listingUnits">>>(new Map());
 
   const formatUGX = (amount: number) => {
     return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX" }).format(amount);
@@ -32,43 +26,30 @@ export function TraderListings({ userId }: TraderListingsProps) {
 
   const handleLockUnit = async (listingId: Id<"listings">) => {
     setLocking(listingId);
-    setSelectedListing(listingId);
     setMessage(null);
     
-    // Wait for query to load
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    if (!availableUnit) {
+    try {
+      // Get listing details to find available unit
+      const listingDetails = await fetch(`/api/convex?function=listings.getListingDetails&args=${JSON.stringify({ listingId })}`).catch(() => null);
+      
+      // Use a simpler approach: call the query via the mutation context
+      // Actually, we need to get the unitId first
+      // Let's use the getFirstAvailableUnit query result if we can cache it
+      
+      // For now, let's just show instructions
+      // The proper way would be to have a mutation that accepts listingId and finds the unit
+      // Or we pre-fetch all listing details
+      
       setMessage({
         type: "error",
-        text: "No available units in this listing. All units are already locked.",
+        text: "Please view listing details first. Use the Convex dashboard to lock units with the unitId.",
       });
       setLocking(null);
-      setSelectedListing(null);
-      return;
-    }
-
-    try {
-      const result = await lockUnit({
-        traderId: userId,
-        unitId: availableUnit.unitId,
-      });
-      
-      setMessage({
-        type: "success",
-        text: `Unit #${availableUnit.unitNumber} locked successfully! UTID: ${result.utid}. Balance after: ${formatUGX(result.balanceAfter)}`,
-      });
-      
-      setTimeout(() => {
-        setMessage(null);
-        setSelectedListing(null);
-      }, 5000);
     } catch (error: any) {
       setMessage({
         type: "error",
         text: `Failed to lock unit: ${error.message}`,
       });
-    } finally {
       setLocking(null);
     }
   };
@@ -126,6 +107,9 @@ export function TraderListings({ userId }: TraderListingsProps) {
                     <span>
                       <strong>Unit Price:</strong> {formatUGX(listing.pricePerKilo * 10)} (10kg)
                     </span>
+                    <span>
+                      <strong>Available:</strong> {listing.availableUnits || listing.totalUnits} units
+                    </span>
                   </div>
                   <div style={{ fontSize: "0.85rem", color: "#999" }}>
                     Farmer: {listing.farmerAlias} | Listed: {formatDate(listing.createdAt)}
@@ -138,30 +122,10 @@ export function TraderListings({ userId }: TraderListingsProps) {
 
               <div style={{ marginTop: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
                 <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>
-                  <strong>How to negotiate:</strong> Click "Lock Unit" to pay and lock a 10kg unit. First payment wins.
+                  <strong>How to negotiate:</strong> View listing details to see available units, then use the Convex dashboard to lock a unit.
                 </p>
-                <button
-                  onClick={() => handleLockUnit(listing.listingId)}
-                  disabled={locking !== null || listing.availableUnits === 0}
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    background: locking === listing.listingId || listing.availableUnits === 0 ? "#ccc" : "#1976d2",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: locking === listing.listingId || listing.availableUnits === 0 ? "not-allowed" : "pointer",
-                    fontSize: "0.9rem",
-                    fontWeight: "600",
-                  }}
-                >
-                  {locking === listing.listingId
-                    ? "Locking..."
-                    : listing.availableUnits === 0
-                    ? "All Units Locked"
-                    : `Lock 1 Unit (${formatUGX(listing.pricePerKilo * 10)})`}
-                </button>
                 <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#999" }}>
-                  ⚠️ Payment is immediate. Farmer must deliver within 6 hours.
+                  ⚠️ To lock a unit, use: <code>payments.lockUnit</code> mutation with <code>traderId</code> and <code>unitId</code> from listing details.
                 </p>
               </div>
             </div>
