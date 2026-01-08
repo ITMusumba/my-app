@@ -123,8 +123,8 @@ async function lockUnitInternal(
     .withIndex("by_listing", (q: any) => q.eq("listingId", listing._id))
     .collect();
 
-  const availableCount = allUnits.filter((u) => u.status === "available").length;
-  const lockedCount = allUnits.filter((u) => u.status === "locked").length;
+  const availableCount = allUnits.filter((u: any) => u.status === "available").length;
+  const lockedCount = allUnits.filter((u: any) => u.status === "locked").length;
 
   if (availableCount === 0 && lockedCount > 0) {
     await ctx.db.patch(listing._id, {
