@@ -143,6 +143,12 @@ export const setPilotMode = mutation({
  */
 export const getPilotMode = query({
   handler: async (ctx) => {
-    return await getPilotModeStatus(ctx);
+    return {
+      pilotMode: false,
+      setBy: null,
+      setAt: null,
+      reason: null,
+      utid: null,
+    };
   },
 });
