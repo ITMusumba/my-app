@@ -28,10 +28,12 @@ import {
 /**
  * Internal helper function to lock a unit (shared logic)
  */
+import { Id } from "./_generated/dataModel";
+
 async function lockUnitInternal(
   ctx: any,
-  traderId: string,
-  unitId: string
+  traderId: Id<"users">,
+  unitId: Id<"listingUnits">
 ) {
   // Verify user is a trader
   const user = await ctx.db.get(traderId);
