@@ -202,18 +202,22 @@ export async function checkRateLimit(
   // Check if limit exceeded
   if (currentCount >= config.limit) {
     // Log rate limit hit (admin-visible)
-    await ctx.db.insert("rateLimitHits", {
-      userId,
-      userRole,
-      actionType,
-      limitType: config.limitType,
-      limitValue: config.limit,
-      attemptedAt: now,
-      windowStart,
-      windowEnd,
-      currentCount: currentCount + 1, // Include this attempt
-      metadata: metadata || {},
-    });
+    // Note: This function is only called from mutations, so ctx.db is always DatabaseWriter
+    // Type assertion is safe because checkRateLimit is only used in mutation contexts
+    if ("insert" in ctx.db) {
+      await ctx.db.insert("rateLimitHits", {
+        userId,
+        userRole,
+        actionType,
+        limitType: config.limitType,
+        limitValue: config.limit,
+        attemptedAt: now,
+        windowStart,
+        windowEnd,
+        currentCount: currentCount + 1, // Include this attempt
+        metadata: metadata || {},
+      });
+    }
 
     // Calculate time until limit resets
     const oldestActionInWindow = await findOldestActionInWindow(
