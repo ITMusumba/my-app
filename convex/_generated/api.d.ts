@@ -14,6 +14,7 @@ import type * as auth from "../auth.js";
 import type * as buyerDashboard from "../buyerDashboard.js";
 import type * as buyers from "../buyers.js";
 import type * as constants from "../constants.js";
+import type * as demoData from "../demoData.js";
 import type * as errors from "../errors.js";
 import type * as farmerDashboard from "../farmerDashboard.js";
 import type * as introspection from "../introspection.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   buyerDashboard: typeof buyerDashboard;
   buyers: typeof buyers;
   constants: typeof constants;
+  demoData: typeof demoData;
   errors: typeof errors;
   farmerDashboard: typeof farmerDashboard;
   introspection: typeof introspection;
