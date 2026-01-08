@@ -110,10 +110,18 @@ export const getActiveListings = query({
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect();
 
-    // Get farmer aliases (anonymity)
+    // Get farmer aliases (anonymity) and unit availability
     const listingsWithAliases = await Promise.all(
       listings.map(async (listing) => {
         const farmer = await ctx.db.get(listing.farmerId);
+        const units = await ctx.db
+          .query("listingUnits")
+          .withIndex("by_listing", (q) => q.eq("listingId", listing._id))
+          .collect();
+        
+        const availableUnits = units.filter((u) => u.status === "available").length;
+        const lockedUnits = units.filter((u) => u.status === "locked").length;
+
         return {
           listingId: listing._id,
           utid: listing.utid,
@@ -121,6 +129,8 @@ export const getActiveListings = query({
           totalKilos: listing.totalKilos,
           pricePerKilo: listing.pricePerKilo,
           totalUnits: listing.totalUnits,
+          availableUnits,
+          lockedUnits,
           farmerAlias: farmer?.alias || "unknown",
           createdAt: listing.createdAt,
         };
@@ -170,6 +180,29 @@ export const getListingDetails = query({
         lockedBy: u.lockedBy,
         lockedAt: u.lockedAt,
       })),
+    };
+  },
+});
+
+/**
+ * Get first available unit ID for a listing (helper for negotiations)
+ */
+export const getFirstAvailableUnit = query({
+  args: { listingId: v.id("listings") },
+  handler: async (ctx, args) => {
+    const units = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_listing", (q) => q.eq("listingId", args.listingId))
+      .collect();
+
+    const availableUnit = units.find((u) => u.status === "available");
+    if (!availableUnit) {
+      return null;
+    }
+
+    return {
+      unitId: availableUnit._id,
+      unitNumber: availableUnit.unitNumber,
     };
   },
 });
