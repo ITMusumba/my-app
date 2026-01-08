@@ -127,11 +127,11 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
         </h3>
         {inventory === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
-        ) : inventory.length === 0 ? (
+        ) : inventory.inventory.length === 0 ? (
           <p style={{ color: "#666" }}>No inventory in storage</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {inventory.map((item: any, index: number) => (
+            {inventory.inventory.map((item: any, index: number) => (
               <div key={index} style={{
                 padding: "1rem",
                 background: "#f5f5f5",
