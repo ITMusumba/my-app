@@ -21,6 +21,7 @@ import type * as listings from "../listings.js";
 import type * as notifications from "../notifications.js";
 import type * as payments from "../payments.js";
 import type * as pilotMode from "../pilotMode.js";
+import type * as pilotSetup from "../pilotSetup.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as traderDashboard from "../traderDashboard.js";
 import type * as utils from "../utils.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   payments: typeof payments;
   pilotMode: typeof pilotMode;
+  pilotSetup: typeof pilotSetup;
   rateLimits: typeof rateLimits;
   traderDashboard: typeof traderDashboard;
   utils: typeof utils;

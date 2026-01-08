@@ -2,7 +2,7 @@
 
 **Controlled, negotiation-driven agricultural trading platform with strict, non-negotiable rules.**
 
-<!-- Last deployment: 2024 -->
+<!-- Last deployment: 2024 - Pilot mode with shared password authentication -->
 
 This repository is the canonical source of truth for the application. All system behavior must be reflected in files here.
 
