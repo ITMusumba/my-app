@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { CreateListing } from "./CreateListing";
 
 interface FarmerDashboardProps {
   userId: Id<"users">;
@@ -32,6 +33,9 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
       <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", color: "#1a1a1a" }}>
         Farmer Dashboard
       </h2>
+
+      {/* Create Listing */}
+      <CreateListing userId={userId} />
 
       {/* My Listings */}
       <div style={{
