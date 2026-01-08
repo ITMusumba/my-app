@@ -12,6 +12,9 @@ import { api } from "../convex/_generated/api";
  */
 
 export default function Home() {
+  // Diagnostic: Check if Convex URL is available at runtime
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  
   const pilotMode = useQuery(api.pilotMode.getPilotMode);
 
   // Format timestamp to readable date
@@ -48,6 +51,32 @@ export default function Home() {
         <p style={{ color: "#666", fontSize: "1.1rem" }}>
           Controlled, negotiation-driven agricultural trading platform
         </p>
+      </div>
+
+      {/* Diagnostic: Convex URL Check */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1rem",
+        background: convexUrl ? "#e8f5e9" : "#ffebee",
+        borderRadius: "8px",
+        border: `1px solid ${convexUrl ? "#4caf50" : "#ef5350"}`
+      }}>
+        {convexUrl ? (
+          <div>
+            <p style={{ margin: 0, color: "#2e7d32", fontWeight: "600" }}>
+              ✅ Convex URL present: {convexUrl}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p style={{ margin: 0, color: "#c62828", fontWeight: "600" }}>
+              ❌ NEXT_PUBLIC_CONVEX_URL is missing
+            </p>
+            <p style={{ margin: "0.5rem 0 0 0", color: "#666", fontSize: "0.9rem" }}>
+              Please set this environment variable in Vercel project settings.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Pilot Mode Status Card */}
