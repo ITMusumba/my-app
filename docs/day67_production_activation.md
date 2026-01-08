@@ -30,17 +30,17 @@ If **any** item is not verified, activation is **BLOCKED**.
 Select exactly one:
 
 - ⬜ **Activated**
-- ⬜ **Blocked — Preconditions Not Met**
+
+- ☑ Blocked — Preconditions Not Met
 
 ---
 
-## Activation Details (Only if Activated)
+## Activation Decision
 
-- Activation timestamp:
-- Environment:
-- URL:
-- Scope of traffic enabled:
-- Kill-switch available: Yes / No
+Select exactly one:
+
+- ⬜ Activated
+- ☑ Blocked — Preconditions Not Met
 
 ---
 
@@ -62,6 +62,7 @@ Select one:
 
 - ⬜ Production is active under controlled conditions
 - ⬜ Production is NOT active (activation blocked)
+- ☑ Production is NOT active (activation blocked)
 
 ---
 
