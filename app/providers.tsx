@@ -23,7 +23,10 @@ export function Providers({ children }: { children: ReactNode }) {
       return null;
     }
     try {
-      return new ConvexReactClient(convexUrl);
+      console.log("Creating Convex client with URL:", convexUrl);
+      const client = new ConvexReactClient(convexUrl);
+      console.log("Convex client created successfully");
+      return client;
     } catch (error) {
       console.error("Failed to create Convex client:", error);
       return null;
@@ -31,8 +34,10 @@ export function Providers({ children }: { children: ReactNode }) {
   }, [convexUrl]);
 
   if (!convex) {
+    console.warn("Convex client is null - rendering without provider");
     return <>{children}</>;
   }
   
+  console.log("Rendering with ConvexProvider");
   return <ConvexProvider client={convex}>{children}</ConvexProvider>;
 }

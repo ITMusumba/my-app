@@ -15,7 +15,18 @@ export default function Home() {
   // Diagnostic: Check if Convex URL is available at runtime
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   
+  // Diagnostic: Log the query attempt
+  console.log("Attempting to query pilotMode:", {
+    hasApi: !!api,
+    hasPilotMode: !!(api as any).pilotMode,
+    hasGetPilotMode: !!(api as any).pilotMode?.getPilotMode,
+    convexUrl
+  });
+  
   const pilotMode = useQuery(api.pilotMode.getPilotMode);
+  
+  // Diagnostic: Log query result
+  console.log("Pilot mode query result:", pilotMode);
 
   // Format timestamp to readable date
   const formatDate = (timestamp: number | null) => {
@@ -93,7 +104,12 @@ export default function Home() {
         </h2>
         
         {pilotMode === undefined ? (
-          <p style={{ color: "#999" }}>Connecting to Convex…</p>
+          <div>
+            <p style={{ color: "#999" }}>Connecting to Convex…</p>
+            <p style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+              Check browser console for connection details.
+            </p>
+          </div>
         ) : (
           <div>
             <div style={{
