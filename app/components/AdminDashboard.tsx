@@ -158,6 +158,30 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
             Seed Demo Data →
           </a>
         </div>
+        <div style={{ padding: "1rem", background: "#ffebee", borderRadius: "6px", border: "1px solid #d32f2f", marginTop: "1rem" }}>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "#c62828", fontWeight: "600", marginBottom: "0.5rem" }}>
+            ⚠️ Reset All Transactions
+          </p>
+          <p style={{ margin: "0.5rem 0", fontSize: "0.85rem", color: "#666" }}>
+            DANGEROUS: This will permanently delete all wallet transactions, unlock all units, delete all inventory, and reset all listings.
+          </p>
+          <a
+            href="/admin/reset-transactions"
+            style={{
+              display: "inline-block",
+              marginTop: "0.5rem",
+              padding: "0.5rem 1rem",
+              background: "#d32f2f",
+              color: "#fff",
+              textDecoration: "none",
+              borderRadius: "6px",
+              fontSize: "0.9rem",
+              fontWeight: "600",
+            }}
+          >
+            Reset All Transactions →
+          </a>
+        </div>
       </div>
     </div>
   );

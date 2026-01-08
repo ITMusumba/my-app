@@ -208,8 +208,9 @@ export const reverseDeliveryFailure = mutation({
       throw new Error("Unit has no lockedBy trader");
     }
 
-    // Calculate refund amount
-    const unitPrice = listing.pricePerKilo * (unit.unitSize || 10);
+    // Calculate refund amount (use listing's unitSize)
+    const unitSize = listing.unitSize || 10;
+    const unitPrice = listing.pricePerKilo * unitSize;
 
     // Generate UTID for reversal
     const utid = await logAdminAction(
