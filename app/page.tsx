@@ -26,9 +26,12 @@ type PilotModeStatus = {
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   
-  // Query pilot mode - handle case where API might not be regenerated yet
-  // @ts-ignore - pilotMode module exists but may not be in generated API yet
-  const pilotMode = useQuery(api.pilotMode?.getPilotMode) as PilotModeStatus | undefined;
+  // Safely check if pilotMode module exists in API
+  const pilotModeQuery = (api as any).pilotMode?.getPilotMode;
+  
+  // Query pilot mode - must call useQuery unconditionally (React hooks rule)
+  // Pass undefined if module doesn't exist - useQuery handles this gracefully
+  const pilotMode = useQuery(pilotModeQuery || undefined) as PilotModeStatus | undefined;
 
   useEffect(() => {
     setMounted(true);
@@ -85,10 +88,16 @@ export default function Home() {
         
         {!mounted ? (
           <p style={{ color: "#999" }}>Loading...</p>
+        ) : !pilotModeQuery ? (
+          <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
+            <p style={{ margin: 0, color: "#856404" }}>
+              ⚠️ Convex API not fully generated. Please run <code style={{ background: "#f5f5f5", padding: "2px 6px", borderRadius: "4px" }}>npx convex deploy</code> to regenerate the API.
+            </p>
+          </div>
         ) : pilotMode === undefined ? (
           <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
             <p style={{ margin: 0, color: "#856404" }}>
-              ⚠️ Convex connection not configured. Please set NEXT_PUBLIC_CONVEX_URL environment variable.
+              ⚠️ Connecting to Convex... Please wait.
             </p>
           </div>
         ) : (
