@@ -1,0 +1,140 @@
+"use client";
+
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
+
+interface AdminDashboardProps {
+  userId: Id<"users">;
+}
+
+export function AdminDashboard({ userId }: AdminDashboardProps) {
+  const redFlags = useQuery(api.adminRedFlags.getRedFlagsSummary, { adminId: userId });
+  const allUTIDs = useQuery(api.introspection.getAllActiveUTIDs, { adminId: userId });
+  const pilotMode = useQuery(api.pilotMode.getPilotMode);
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", color: "#1a1a1a" }}>
+        Admin Dashboard
+      </h2>
+
+      {/* Red Flags Summary */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+          Red Flags (High-Risk Signals)
+        </h3>
+        {redFlags === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+            <div style={{ padding: "1rem", background: "#ffebee", borderRadius: "8px", border: "1px solid #ef5350" }}>
+              <div style={{ fontSize: "2rem", fontWeight: "600", color: "#c62828" }}>
+                {redFlags.deliveriesPastSLA || 0}
+              </div>
+              <div style={{ color: "#666", fontSize: "0.9rem" }}>Deliveries Past SLA</div>
+            </div>
+            <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
+              <div style={{ fontSize: "2rem", fontWeight: "600", color: "#856404" }}>
+                {redFlags.tradersNearSpendCap || 0}
+              </div>
+              <div style={{ color: "#666", fontSize: "0.9rem" }}>Traders Near Cap</div>
+            </div>
+            <div style={{ padding: "1rem", background: "#e3f2fd", borderRadius: "8px", border: "1px solid #2196f3" }}>
+              <div style={{ fontSize: "2rem", fontWeight: "600", color: "#1565c0" }}>
+                {redFlags.highStorageLossInventory || 0}
+              </div>
+              <div style={{ color: "#666", fontSize: "0.9rem" }}>High Storage Loss</div>
+            </div>
+            <div style={{ padding: "1rem", background: "#f3e5f5", borderRadius: "8px", border: "1px solid #9c27b0" }}>
+              <div style={{ fontSize: "2rem", fontWeight: "600", color: "#6a1b9a" }}>
+                {redFlags.buyersApproachingPickupSLA || 0}
+              </div>
+              <div style={{ color: "#666", fontSize: "0.9rem" }}>Buyers Near Pickup SLA</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* System UTIDs */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+          System UTIDs
+        </h3>
+        {allUTIDs === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <div>
+            <p style={{ color: "#666" }}>
+              Total active UTIDs: <strong>{allUTIDs.totalUTIDs}</strong>
+            </p>
+            <div style={{ marginTop: "1rem", maxHeight: "400px", overflowY: "auto" }}>
+              {allUTIDs.utids.slice(0, 20).map((utidData: any, index: number) => (
+                <div key={index} style={{
+                  padding: "0.75rem",
+                  marginBottom: "0.5rem",
+                  background: "#f5f5f5",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem"
+                }}>
+                  <div style={{ fontFamily: "monospace", fontWeight: "600", marginBottom: "0.25rem" }}>
+                    {utidData.utid}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                    Type: {utidData.type} | Status: {utidData.status || "active"}
+                  </div>
+                </div>
+              ))}
+              {allUTIDs.utids.length > 20 && (
+                <p style={{ color: "#999", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                  ... and {allUTIDs.utids.length - 20} more
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Pilot Mode Control */}
+      <div style={{
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+          System Controls
+        </h3>
+        <p style={{ color: "#666", marginBottom: "1rem" }}>
+          Use Convex dashboard to manage pilot mode, purchase windows, and other system settings.
+        </p>
+        <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "6px" }}>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
+            <strong>Available Admin Actions:</strong>
+          </p>
+          <ul style={{ margin: "0.5rem 0 0 0", paddingLeft: "1.5rem", color: "#666", fontSize: "0.85rem" }}>
+            <li>Set pilot mode (pilotMode.setPilotMode)</li>
+            <li>Open/close purchase windows (admin.openPurchaseWindow / admin.closePurchaseWindow)</li>
+            <li>Verify deliveries (admin.verifyDelivery)</li>
+            <li>Reverse failed deliveries (admin.reverseDeliveryFailure)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,6 +4,11 @@ import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AdminDashboard } from "./components/AdminDashboard";
+import { TraderDashboard } from "./components/TraderDashboard";
+import { FarmerDashboard } from "./components/FarmerDashboard";
+import { BuyerDashboard } from "./components/BuyerDashboard";
+import { Id } from "../convex/_generated/dataModel";
 
 /**
  * Farm2Market Uganda - Pilot Dashboard
@@ -245,29 +250,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Quick Links */}
+      {/* Role-Based Dashboard */}
       <div style={{
         marginTop: "2rem",
         padding: "1.5rem",
-        background: "#f5f5f5",
+        background: "#fff",
         borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.2rem", color: "#1a1a1a" }}>
-          Documentation
-        </h3>
-        <ul style={{ margin: 0, paddingLeft: "1.5rem", color: "#666" }}>
-          <li style={{ margin: "0.5rem 0" }}>
-            <a href="https://github.com/ITMusumba/my-app" target="_blank" rel="noopener noreferrer" style={{ color: "#1976d2", textDecoration: "none" }}>
-              GitHub Repository
-            </a>
-          </li>
-          <li style={{ margin: "0.5rem 0" }}>
-            <a href="/docs" style={{ color: "#1976d2", textDecoration: "none" }}>
-              Documentation (docs/)
-            </a>
-          </li>
-        </ul>
+        {user.role === "admin" && <AdminDashboard userId={user.userId as Id<"users">} />}
+        {user.role === "trader" && <TraderDashboard userId={user.userId as Id<"users">} />}
+        {user.role === "farmer" && <FarmerDashboard userId={user.userId as Id<"users">} />}
+        {user.role === "buyer" && <BuyerDashboard userId={user.userId as Id<"users">} />}
       </div>
     </main>
   );
