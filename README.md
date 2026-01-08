@@ -80,6 +80,11 @@ my-app/
    - Create a Convex project (if needed)
    - Generate `.env.local` with `NEXT_PUBLIC_CONVEX_URL`
    - Start the Convex development server
+   
+   **Or manually set the Convex URL**:
+   - Create `.env.local` with: `NEXT_PUBLIC_CONVEX_URL=https://chatty-camel-373.convex.cloud`
+   - For Vercel: Add this as an environment variable in project settings
+   - See `docs/setup_convex.md` for detailed instructions
 
 3. **Start Next.js dev server**:
    ```bash
