@@ -1,0 +1,147 @@
+/**
+ * Listings & Inventory Management
+ * 
+ * - Farmers list produce → auto-split into 10kg units
+ * - Units lock only on successful payment (pay-to-lock)
+ * - Trader inventory aggregates into 100kg blocks for buyers
+ */
+
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import { generateUTID } from "./utils";
+import { LISTING_UNIT_SIZE_KG } from "./constants";
+
+/**
+ * Create a listing (farmer only)
+ * Auto-splits into 10kg units
+ */
+export const createListing = mutation({
+  args: {
+    farmerId: v.id("users"),
+    produceType: v.string(),
+    totalKilos: v.number(),
+    pricePerKilo: v.number(), // In UGX
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a farmer
+    const user = await ctx.db.get(args.farmerId);
+    if (!user || user.role !== "farmer") {
+      throw new Error("User is not a farmer");
+    }
+
+    if (args.totalKilos <= 0 || args.pricePerKilo <= 0) {
+      throw new Error("Kilos and price must be positive");
+    }
+
+    // Generate UTID
+    const utid = generateUTID(user.role);
+
+    // Calculate units (10kg each)
+    const totalUnits = Math.floor(args.totalKilos / LISTING_UNIT_SIZE_KG);
+    if (totalUnits === 0) {
+      throw new Error(`Total kilos must be at least ${LISTING_UNIT_SIZE_KG}kg`);
+    }
+
+    // Create listing
+    const listingId = await ctx.db.insert("listings", {
+      farmerId: args.farmerId,
+      utid,
+      produceType: args.produceType,
+      totalKilos: args.totalKilos,
+      pricePerKilo: args.pricePerKilo,
+      unitSize: LISTING_UNIT_SIZE_KG,
+      totalUnits,
+      status: "active",
+      createdAt: Date.now(),
+      deliverySLA: 0, // Set when payment is made
+    });
+
+    // Create individual units
+    const unitIds = [];
+    for (let i = 1; i <= totalUnits; i++) {
+      const unitId = await ctx.db.insert("listingUnits", {
+        listingId,
+        unitNumber: i,
+        status: "available",
+      });
+      unitIds.push(unitId);
+    }
+
+    return { listingId, utid, totalUnits, unitIds };
+  },
+});
+
+/**
+ * Get active listings (traders can view)
+ */
+export const getActiveListings = query({
+  args: {},
+  handler: async (ctx) => {
+    const listings = await ctx.db
+      .query("listings")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+
+    // Get farmer aliases (anonymity)
+    const listingsWithAliases = await Promise.all(
+      listings.map(async (listing) => {
+        const farmer = await ctx.db.get(listing.farmerId);
+        return {
+          listingId: listing._id,
+          utid: listing.utid,
+          produceType: listing.produceType,
+          totalKilos: listing.totalKilos,
+          pricePerKilo: listing.pricePerKilo,
+          totalUnits: listing.totalUnits,
+          farmerAlias: farmer?.alias || "unknown",
+          createdAt: listing.createdAt,
+        };
+      })
+    );
+
+    return listingsWithAliases;
+  },
+});
+
+/**
+ * Get listing details with unit status
+ */
+export const getListingDetails = query({
+  args: { listingId: v.id("listings") },
+  handler: async (ctx, args) => {
+    const listing = await ctx.db.get(args.listingId);
+    if (!listing) {
+      return null;
+    }
+
+    const farmer = await ctx.db.get(listing.farmerId);
+    const units = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_listing", (q) => q.eq("listingId", args.listingId))
+      .collect();
+
+    const availableUnits = units.filter((u) => u.status === "available").length;
+    const lockedUnits = units.filter((u) => u.status === "locked").length;
+
+    return {
+      listingId: listing._id,
+      utid: listing.utid,
+      produceType: listing.produceType,
+      totalKilos: listing.totalKilos,
+      pricePerKilo: listing.pricePerKilo,
+      totalUnits: listing.totalUnits,
+      availableUnits,
+      lockedUnits,
+      status: listing.status,
+      farmerAlias: farmer?.alias || "unknown",
+      createdAt: listing.createdAt,
+      units: units.map((u) => ({
+        unitId: u._id,
+        unitNumber: u.unitNumber,
+        status: u.status,
+        lockedBy: u.lockedBy,
+        lockedAt: u.lockedAt,
+      })),
+    };
+  },
+});
