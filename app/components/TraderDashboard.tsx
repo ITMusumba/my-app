@@ -170,11 +170,11 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
         </h3>
         {activeUTIDs === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
-        ) : activeUTIDs.length === 0 ? (
+        ) : activeUTIDs.utids.length === 0 ? (
           <p style={{ color: "#666" }}>No active transactions</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {activeUTIDs.map((utid: any, index: number) => (
+            {activeUTIDs.utids.map((utid: any, index: number) => (
               <div key={index} style={{
                 padding: "0.75rem",
                 background: "#f5f5f5",
