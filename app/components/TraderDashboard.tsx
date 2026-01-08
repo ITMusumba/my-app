@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { TraderListings } from "./TraderListings";
 
 interface TraderDashboardProps {
   userId: Id<"users">;
@@ -159,6 +160,7 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
 
       {/* Active UTIDs */}
       <div style={{
+        marginBottom: "2rem",
         padding: "1.5rem",
         background: "#fff",
         borderRadius: "12px",
@@ -187,6 +189,17 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Available Listings for Negotiations */}
+      <div style={{
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <TraderListings userId={userId} />
       </div>
     </div>
   );
