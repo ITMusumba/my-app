@@ -123,7 +123,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         <p style={{ color: "#666", marginBottom: "1rem" }}>
           Use Convex dashboard to manage pilot mode, purchase windows, and other system settings.
         </p>
-        <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "6px" }}>
+        <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "6px", marginBottom: "1rem" }}>
           <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
             <strong>Available Admin Actions:</strong>
           </p>
@@ -133,6 +133,30 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
             <li>Verify deliveries (admin.verifyDelivery)</li>
             <li>Reverse failed deliveries (admin.reverseDeliveryFailure)</li>
           </ul>
+        </div>
+        <div style={{ padding: "1rem", background: "#e3f2fd", borderRadius: "6px", border: "1px solid #2196f3" }}>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "#1565c0", fontWeight: "600", marginBottom: "0.5rem" }}>
+            🚀 Demo Data Seeding
+          </p>
+          <p style={{ margin: "0.5rem 0", fontSize: "0.85rem", color: "#666" }}>
+            Seed the system with demo data: farmer listings, trader wallets (1M UGX), and buyer wallets (2M UGX).
+          </p>
+          <a
+            href="/admin/seed-demo"
+            style={{
+              display: "inline-block",
+              marginTop: "0.5rem",
+              padding: "0.5rem 1rem",
+              background: "#1976d2",
+              color: "#fff",
+              textDecoration: "none",
+              borderRadius: "6px",
+              fontSize: "0.9rem",
+              fontWeight: "600",
+            }}
+          >
+            Seed Demo Data →
+          </a>
         </div>
       </div>
     </div>
