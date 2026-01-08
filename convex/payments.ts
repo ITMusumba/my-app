@@ -192,10 +192,10 @@ export const lockUnitByListing = mutation({
     // Find first available unit
     const units = await ctx.db
       .query("listingUnits")
-      .withIndex("by_listing", (q) => q.eq("listingId", args.listingId))
+      .withIndex("by_listing", (q: any) => q.eq("listingId", args.listingId))
       .collect();
 
-    const availableUnit = units.find((u) => u.status === "available");
+    const availableUnit = units.find((u: any) => u.status === "available");
     if (!availableUnit) {
       throw new Error("No available units in this listing");
     }
