@@ -222,9 +222,10 @@ export const getPayToLockConfirmations = query({
         // Get wallet ledger entry for this lock (payment confirmation)
         let walletEntry = null;
         if (unit.lockUtid) {
+          const lockUtid = unit.lockUtid; // Type narrowing for TypeScript
           const entries = await ctx.db
             .query("walletLedger")
-            .withIndex("by_utid", (q) => q.eq("utid", unit.lockUtid))
+            .withIndex("by_utid", (q) => q.eq("utid", lockUtid))
             .first();
           walletEntry = entries;
         }
