@@ -2,6 +2,8 @@
 
 **Controlled, negotiation-driven agricultural trading platform with strict, non-negotiable rules.**
 
+<!-- Last deployment: 2024 -->
+
 This repository is the canonical source of truth for the application. All system behavior must be reflected in files here.
 
 ## Architecture
