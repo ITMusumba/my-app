@@ -235,4 +235,18 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_unread", ["userId", "read"])
     .index("by_utid", ["utid"]),
+
+  /**
+   * System settings
+   * - Global system configuration
+   * - Admin-controlled flags
+   * - Single record (singleton pattern)
+   */
+  systemSettings: defineTable({
+    pilotMode: v.boolean(), // When true, blocks all mutations that move money or inventory
+    setBy: v.id("users"), // Admin who set this flag
+    setAt: v.number(), // Timestamp when flag was set
+    reason: v.string(), // Reason for setting flag
+    utid: v.string(), // Admin action UTID
+  }),
 });

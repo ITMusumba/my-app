@@ -10,6 +10,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { generateUTID } from "./utils";
 import { LISTING_UNIT_SIZE_KG } from "./constants";
+import { checkPilotMode } from "./pilotMode";
 
 /**
  * Create a listing (farmer only)
@@ -23,6 +24,13 @@ export const createListing = mutation({
     pricePerKilo: v.number(), // In UGX
   },
   handler: async (ctx, args) => {
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation creates inventory that can be purchased (moves money),
+    // so it must be blocked during pilot mode. The check happens FIRST to fail fast.
+    await checkPilotMode(ctx);
+
     // Verify user is a farmer
     const user = await ctx.db.get(args.farmerId);
     if (!user || user.role !== "farmer") {

@@ -13,6 +13,7 @@ import { mutation } from "./_generated/server";
 import { generateUTID, calculateTraderExposureInternal } from "./utils";
 import { calculateDeliverySLA } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, LISTING_UNIT_SIZE_KG } from "./constants";
+import { checkPilotMode } from "./pilotMode";
 
 /**
  * Lock a unit by payment (trader only)
@@ -32,6 +33,14 @@ export const lockUnit = mutation({
     unitId: v.id("listingUnits"),
   },
   handler: async (ctx, args) => {
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves money (locks capital), so it must be blocked
+    // during pilot mode. The check happens FIRST to fail fast and prevent
+    // any partial state changes.
+    await checkPilotMode(ctx);
+
     // Verify user is a trader
     const user = await ctx.db.get(args.traderId);
     if (!user || user.role !== "trader") {

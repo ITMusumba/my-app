@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { generateUTID } from "./utils";
 import { calculatePickupSLA } from "./utils";
+import { checkPilotMode } from "./pilotMode";
 
 /**
  * Create buyer purchase (buyer only)
@@ -33,6 +34,14 @@ export const createBuyerPurchase = mutation({
     kilos: v.number(),
   },
   handler: async (ctx, args) => {
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves inventory (locks inventory on purchase),
+    // so it must be blocked during pilot mode. The check happens FIRST
+    // to fail fast and prevent any partial state changes.
+    await checkPilotMode(ctx);
+
     // ============================================================
     // FIRST VALIDATION: PURCHASE WINDOW MUST BE OPEN
     // ============================================================

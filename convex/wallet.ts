@@ -12,6 +12,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { generateUTID, calculateTraderExposureInternal } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
+import { checkPilotMode } from "./pilotMode";
 
 /**
  * Get wallet balance for a trader
@@ -127,6 +128,13 @@ export const withdrawProfit = mutation({
     amount: v.number(), // In UGX
   },
   handler: async (ctx, args) => {
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves money (withdraws profit), so it must be blocked
+    // during pilot mode. The check happens FIRST to fail fast.
+    await checkPilotMode(ctx);
+
     // Verify user is a trader
     const user = await ctx.db.get(args.traderId);
     if (!user || user.role !== "trader") {
