@@ -177,3 +177,38 @@ export const lockUnit = mutation({
     };
   },
 });
+
+/**
+ * Lock a unit by listing ID (finds first available unit)
+ * Convenience mutation for UI - finds first available unit and locks it
+ */
+export const lockUnitByListing = mutation({
+  args: {
+    traderId: v.id("users"),
+    listingId: v.id("listings"),
+  },
+  handler: async (ctx, args) => {
+    // Get listing
+    const listing = await ctx.db.get(args.listingId);
+    if (!listing) {
+      throw new Error("Listing not found");
+    }
+
+    // Find first available unit
+    const units = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_listing", (q) => q.eq("listingId", args.listingId))
+      .collect();
+
+    const availableUnit = units.find((u) => u.status === "available");
+    if (!availableUnit) {
+      throw new Error("No available units in this listing");
+    }
+
+    // Use the existing lockUnit logic
+    return await lockUnit.handler(ctx, {
+      traderId: args.traderId,
+      unitId: availableUnit._id,
+    });
+  },
+});
