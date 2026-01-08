@@ -17,29 +17,11 @@ Farm2Market2024
 
 ---
 
-## Step 1: Create Test Users
+## Step 1: Login (Users Auto-Created)
 
-Run the pilot setup mutation to create all test users:
+**No setup required!** Users are automatically created on first login.
 
-```bash
-# In Convex dashboard or via API call
-mutation: auth.createPilotUsers
-```
-
-This creates:
-- **2 Farmers**: `farmer1@pilot.farm2market`, `farmer2@pilot.farm2market`
-- **2 Traders**: `trader1@pilot.farm2market`, `trader2@pilot.farm2market`
-- **1 Buyer**: `buyer1@pilot.farm2market`
-- **1 Admin**: `admin@pilot.farm2market`
-
-All users are created with:
-- System-generated aliases (e.g., `far_a3k9x2`, `tra_m7p4q1`)
-- Shared password hash
-- Appropriate roles
-
----
-
-## Step 2: Login
+Simply:
 
 1. Navigate to `/login`
 2. Enter any test user email (e.g., `farmer1@pilot.farm2market`)
@@ -65,21 +47,20 @@ You'll be redirected to the dashboard showing your role and alias.
 
 ---
 
-## Creating Additional Users
+## How It Works
 
-To create additional test users, use the `createUser` mutation:
+The login system:
+1. **Validates password** against shared pilot password
+2. **Auto-creates user** if email doesn't exist
+3. **Infers role** from email prefix:
+   - `admin*` → admin
+   - `farmer*` → farmer
+   - `trader*` → trader
+   - Everything else → buyer
+4. **Generates alias** automatically
+5. **Returns user info** for session
 
-```typescript
-mutation: auth.createUser
-args: {
-  email: "newuser@pilot.farm2market",
-  role: "farmer" // or "trader", "buyer", "admin"
-}
-```
-
-The user will automatically get:
-- System-generated alias
-- Shared password hash (`Farm2Market2024`)
+**No manual user creation needed!**
 
 ---
 
