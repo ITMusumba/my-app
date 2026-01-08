@@ -12,6 +12,12 @@ import { generateUTID } from "./utils";
 import { LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
+import {
+  invalidRoleError,
+  invalidKilosError,
+  invalidAmountError,
+  throwAppError,
+} from "./errors";
 
 /**
  * Create a listing (farmer only)
@@ -35,7 +41,7 @@ export const createListing = mutation({
     // Verify user is a farmer
     const user = await ctx.db.get(args.farmerId);
     if (!user || user.role !== "farmer") {
-      throw new Error("User is not a farmer");
+      throwAppError(invalidRoleError("farmer"));
     }
 
     // ============================================================
@@ -48,8 +54,11 @@ export const createListing = mutation({
       totalKilos: args.totalKilos,
     });
 
-    if (args.totalKilos <= 0 || args.pricePerKilo <= 0) {
-      throw new Error("Kilos and price must be positive");
+    if (args.totalKilos <= 0) {
+      throwAppError(invalidKilosError());
+    }
+    if (args.pricePerKilo <= 0) {
+      throwAppError(invalidAmountError());
     }
 
     // Generate UTID

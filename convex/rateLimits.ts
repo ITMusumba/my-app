@@ -19,6 +19,7 @@ import { v } from "convex/values";
 import { query, DatabaseReader, DatabaseWriter } from "./_generated/server";
 import { RATE_LIMITS } from "./constants";
 import { Id } from "./_generated/dataModel";
+import { rateLimitExceededError, throwAppError } from "./errors";
 
 /**
  * Rate limit configuration
@@ -229,13 +230,13 @@ export async function checkRateLimit(
 
     const minutesUntilReset = Math.ceil((resetTime - now) / (60 * 1000));
 
-    // Throw explicit error with helpful message
-    throw new Error(
-      `Rate limit exceeded: You have exceeded the limit of ${config.limit} ${config.limitType.replace(/_/g, " ")}. ` +
-      `Current count: ${currentCount + 1}. ` +
-      `Limit resets in approximately ${minutesUntilReset} minute(s). ` +
-      `This action has been logged for admin review. ` +
-      `If you believe this is an error, please contact support.`
+    // Standardized error - no internal details exposed
+    throwAppError(
+      rateLimitExceededError(
+        config.limitType,
+        config.limit,
+        resetTime
+      )
     );
   }
 }

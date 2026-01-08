@@ -15,6 +15,7 @@
 import { v } from "convex/values";
 import { mutation, query, DatabaseReader } from "./_generated/server";
 import { generateUTID } from "./utils";
+import { pilotModeActiveError, throwAppError, notAdminError } from "./errors";
 
 /**
  * Get current pilot mode status
@@ -61,15 +62,8 @@ export async function checkPilotMode(ctx: { db: DatabaseReader }): Promise<void>
   const status = await getPilotModeStatus(ctx);
 
   if (status.pilotMode) {
-    // Explicit failure with detailed message
-    throw new Error(
-      `PILOT MODE ACTIVE: This operation is blocked because pilot mode is enabled. ` +
-      `Pilot mode was set by admin at ${new Date(status.setAt || 0).toISOString()}. ` +
-      `Reason: ${status.reason || "No reason provided"}. ` +
-      `All mutations that move money or inventory are blocked during pilot mode. ` +
-      `Read-only queries are still available. ` +
-      `Contact an admin to disable pilot mode if this operation is needed.`
-    );
+    // Standardized error - no internal details exposed
+    throwAppError(pilotModeActiveError(status.reason || undefined));
   }
 }
 
@@ -89,7 +83,7 @@ export const setPilotMode = mutation({
     // Verify admin
     const user = await ctx.db.get(args.adminId);
     if (!user || user.role !== "admin") {
-      throw new Error("User is not an admin");
+      throwAppError(notAdminError());
     }
 
     // Generate UTID for this admin action

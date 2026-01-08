@@ -13,6 +13,14 @@ import { generateUTID } from "./utils";
 import { calculatePickupSLA } from "./utils";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
+import {
+  purchaseWindowClosedError,
+  invalidRoleError,
+  invalidKilosError,
+  inventoryNotFoundError,
+  inventoryNotAvailableError,
+  throwAppError,
+} from "./errors";
 
 /**
  * Create buyer purchase (buyer only)
@@ -55,10 +63,7 @@ export const createBuyerPurchase = mutation({
       .first();
 
     if (!purchaseWindow) {
-      throw new Error(
-        "Purchase window is not open. Buyers can only purchase during " +
-        "admin-opened purchase windows."
-      );
+      throwAppError(purchaseWindowClosedError());
     }
 
     // ============================================================
@@ -66,7 +71,7 @@ export const createBuyerPurchase = mutation({
     // ============================================================
     const user = await ctx.db.get(args.buyerId);
     if (!user || user.role !== "buyer") {
-      throw new Error("User is not a buyer");
+      throwAppError(invalidRoleError("buyer"));
     }
 
     // ============================================================
@@ -80,7 +85,7 @@ export const createBuyerPurchase = mutation({
     });
 
     if (args.kilos <= 0) {
-      throw new Error("Kilos must be positive");
+      throwAppError(invalidKilosError());
     }
 
     // ============================================================
@@ -88,15 +93,12 @@ export const createBuyerPurchase = mutation({
     // ============================================================
     const inventory = await ctx.db.get(args.inventoryId);
     if (!inventory) {
-      throw new Error("Inventory not found");
+      throwAppError(inventoryNotFoundError());
     }
 
     // Inventory must be in_storage (available for purchase)
     if (inventory.status !== "in_storage") {
-      throw new Error(
-        `Inventory is not available for purchase. Current status: ${inventory.status}. ` +
-        `Only inventory with status "in_storage" can be purchased.`
-      );
+      throwAppError(inventoryNotAvailableError());
     }
 
     // Validate kilos requested

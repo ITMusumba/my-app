@@ -15,6 +15,15 @@ import { calculateDeliverySLA } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
+import {
+  spendCapExceededError,
+  insufficientCapitalError,
+  unitNotAvailableError,
+  listingNotFoundError,
+  unitNotFoundError,
+  invalidRoleError,
+  throwAppError,
+} from "./errors";
 
 /**
  * Lock a unit by payment (trader only)
@@ -86,10 +95,8 @@ export const lockUnit = mutation({
     const newExposure = exposure.totalExposure + unitPrice;
 
     if (newExposure > MAX_TRADER_EXPOSURE_UGX) {
-      throw new Error(
-        `Spend cap exceeded. Current exposure: ${exposure.totalExposure} UGX, ` +
-        `would be: ${newExposure} UGX (cap: ${MAX_TRADER_EXPOSURE_UGX} UGX)`
-      );
+      // Standardized error - no internal exposure amounts exposed
+      throwAppError(spendCapExceededError());
     }
 
     // Get current wallet balance (for available capital check)
@@ -103,7 +110,7 @@ export const lockUnit = mutation({
     const availableCapital = currentBalance - exposure.lockedCapital;
 
     if (availableCapital < unitPrice) {
-      throw new Error("Insufficient available capital");
+      throwAppError(insufficientCapitalError());
     }
 
     // Generate UTID for this transaction

@@ -14,6 +14,12 @@ import { generateUTID, calculateTraderExposureInternal } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
+import {
+  invalidRoleError,
+  invalidAmountError,
+  insufficientProfitError,
+  throwAppError,
+} from "./errors";
 
 /**
  * Get wallet balance for a trader
@@ -139,7 +145,7 @@ export const withdrawProfit = mutation({
     // Verify user is a trader
     const user = await ctx.db.get(args.traderId);
     if (!user || user.role !== "trader") {
-      throw new Error("User is not a trader");
+      throwAppError(invalidRoleError("trader"));
     }
 
     // ============================================================
@@ -152,7 +158,7 @@ export const withdrawProfit = mutation({
     });
 
     if (args.amount <= 0) {
-      throw new Error("Amount must be positive");
+      throwAppError(invalidAmountError());
     }
 
     // Get current profit balance
@@ -171,7 +177,7 @@ export const withdrawProfit = mutation({
     }
 
     if (profitBalance < args.amount) {
-      throw new Error("Insufficient profit balance");
+      throwAppError(insufficientProfitError());
     }
 
     // Generate UTID
