@@ -14,7 +14,11 @@ This repository is the canonical source of truth for the application. All system
 
 ### Core Principles
 
-1. **Backend**: Convex only - no Supabase, Firebase, or raw SQL
+1. **Backend**: Convex only - **Supabase is FORBIDDEN and DEPRECATED**
+   - ❌ **DO NOT use Supabase** - It violates core architecture constraints
+   - ❌ **DO NOT reactivate** dormant Supabase code in `dormant/supabase/`
+   - ✅ **ONLY use Convex** - All backend logic must be in Convex functions
+   - See `dormant/supabase/DO_NOT_USE.md` for detailed explanation
 2. **Business Logic**: All business logic lives in Convex functions
 3. **User Roles**: Exactly one role per user (farmer, trader, buyer, admin)
 4. **Anonymity**: System-generated aliases only - no real names or identities
@@ -45,8 +49,8 @@ my-app/
 │   ├── architecture.md    # System architecture & governance
 │   ├── day66_pre_activation.md
 │   └── day67_production_activation.md
-├── dormant/               # Dormant/unused code
-│   └── supabase/          # Supabase code (not used - Convex only)
+├── dormant/               # Dormant/unused code (DO NOT USE)
+│   └── supabase/          # ⚠️ FORBIDDEN - Supabase code (see DO_NOT_USE.md)
 ├── package.json
 ├── tsconfig.json
 ├── next.config.js
@@ -165,8 +169,17 @@ All business logic lives in `convex/`:
 
 - Status: Project restructured for Convex backend
 - Environment: Local development setup
-- Backend: Convex (Supabase moved to dormant/)
+- Backend: **Convex ONLY** (Supabase is FORBIDDEN - see `dormant/supabase/DO_NOT_USE.md`)
 - Production: Not activated (see `docs/architecture.md`)
+
+## ⚠️ Important: Supabase Is Forbidden
+
+**Supabase is NOT used in this project and MUST NOT be used.**
+
+- All Supabase code has been moved to `dormant/supabase/` and is **permanently dormant**
+- Using Supabase violates core architecture constraints
+- See `dormant/supabase/DO_NOT_USE.md` for detailed explanation
+- **All backend development must use Convex only**
 
 ## Out of Scope (v1.x)
 

@@ -100,10 +100,19 @@ export default defineSchema({
     lockedBy: v.optional(v.id("users")), // Trader who locked it
     lockedAt: v.optional(v.number()),
     lockUtid: v.optional(v.string()), // UTID of the payment that locked this unit
+    // Delivery SLA tracking
+    deliveryDeadline: v.optional(v.number()), // Timestamp: lockedAt + 6 hours
+    deliveryStatus: v.optional(v.union(
+      v.literal("pending"),
+      v.literal("delivered"),
+      v.literal("late"),
+      v.literal("cancelled")
+    )), // Tracks delivery status for SLA monitoring
   })
     .index("by_listing", ["listingId"])
     .index("by_status", ["status"])
-    .index("by_lock_utid", ["lockUtid"]),
+    .index("by_lock_utid", ["lockUtid"])
+    .index("by_delivery_status", ["deliveryStatus"]),
 
   /**
    * Trader inventory

@@ -7,7 +7,8 @@
  */
 
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { query, DatabaseReader, DatabaseWriter } from "./_generated/server";
+import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -25,19 +26,29 @@ export function generateUTID(role: string): string {
 }
 
 /**
- * Calculate trader exposure (internal helper)
- * Can be used in both queries and mutations
- * Exposure = capital committed + locked orders + inventory value
- * Must not exceed UGX 1,000,000
+ * CANONICAL trader exposure calculation function
+ * 
+ * This is the SINGLE SOURCE OF TRUTH for trader exposure calculations.
+ * Used consistently in:
+ * - Wallet mutations (spend cap enforcement)
+ * - Payment/pay-to-lock mutations (spend cap enforcement BEFORE wallet debit)
+ * - Query endpoints (exposure reporting)
+ * 
+ * Exposure = locked capital + locked orders value + inventory value
+ * Must not exceed MAX_TRADER_EXPOSURE_UGX (1,000,000 UGX)
+ * 
+ * @param ctx - Database context (works with both DatabaseReader and DatabaseWriter)
+ * @param traderId - The trader's user ID
+ * @returns Exposure breakdown and spend capacity information
  */
 export async function calculateTraderExposureInternal(
-  ctx: any,
+  ctx: { db: DatabaseReader | DatabaseWriter },
   traderId: string
 ) {
   // Get locked capital from wallet ledger
   const capitalEntries = await ctx.db
     .query("walletLedger")
-    .withIndex("by_user", (q) => q.eq("userId", traderId))
+    .withIndex("by_user", (q: any) => q.eq("userId", traderId))
     .collect();
 
   let lockedCapital = 0;
@@ -53,7 +64,7 @@ export async function calculateTraderExposureInternal(
   // Get value of locked orders (pending payments)
   const lockedUnits = await ctx.db
     .query("listingUnits")
-    .withIndex("by_status", (q) => q.eq("status", "locked"))
+    .withIndex("by_status", (q: any) => q.eq("status", "locked"))
     .collect();
 
   let lockedOrdersValue = 0;
@@ -69,7 +80,7 @@ export async function calculateTraderExposureInternal(
   // Get inventory value
   const inventory = await ctx.db
     .query("traderInventory")
-    .withIndex("by_trader", (q) => q.eq("traderId", traderId))
+    .withIndex("by_trader", (q: any) => q.eq("traderId", traderId))
     .collect();
 
   let inventoryValue = 0;
@@ -86,21 +97,23 @@ export async function calculateTraderExposureInternal(
   }
 
   const totalExposure = lockedCapital + lockedOrdersValue + inventoryValue;
-  const spendCap = 1_000_000; // UGX 1,000,000
 
   return {
     lockedCapital,
     lockedOrdersValue,
     inventoryValue,
     totalExposure,
-    spendCap,
-    canSpend: totalExposure < spendCap,
-    remainingCapacity: Math.max(0, spendCap - totalExposure),
+    spendCap: MAX_TRADER_EXPOSURE_UGX,
+    canSpend: totalExposure < MAX_TRADER_EXPOSURE_UGX,
+    remainingCapacity: Math.max(0, MAX_TRADER_EXPOSURE_UGX - totalExposure),
   };
 }
 
 /**
- * Calculate trader exposure (query endpoint)
+ * Calculate trader exposure (public query endpoint)
+ * 
+ * Wrapper around calculateTraderExposureInternal for client access.
+ * The canonical calculation logic is in calculateTraderExposureInternal.
  */
 export const calculateTraderExposure = query({
   args: { traderId: v.id("users") },

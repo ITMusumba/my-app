@@ -55,7 +55,14 @@ export const lockUnit = mutation({
 
     const unitPrice = listing.pricePerKilo * LISTING_UNIT_SIZE_KG;
 
-    // ENFORCEMENT: Check spend cap BEFORE payment
+    // ============================================================
+    // SPEND CAP ENFORCEMENT (MUST HAPPEN BEFORE WALLET DEBIT)
+    // ============================================================
+    // This is the critical enforcement point. We calculate exposure
+    // using the canonical calculateTraderExposureInternal function
+    // and verify the trader can afford this purchase BEFORE any
+    // wallet debit occurs. If this check fails, the entire mutation
+    // rolls back atomically.
     const exposure = await calculateTraderExposureInternal(ctx, args.traderId);
     const newExposure = exposure.totalExposure + unitPrice;
 
@@ -66,7 +73,7 @@ export const lockUnit = mutation({
       );
     }
 
-    // Get current wallet balance
+    // Get current wallet balance (for available capital check)
     const walletEntries = await ctx.db
       .query("walletLedger")
       .withIndex("by_user", (q) => q.eq("userId", args.traderId))
@@ -101,11 +108,16 @@ export const lockUnit = mutation({
     });
 
     // Step 2: Lock the unit (first payment wins)
+    const paymentTime = Date.now();
+    const deliveryDeadline = calculateDeliverySLA(paymentTime);
+    
     await ctx.db.patch(args.unitId, {
       status: "locked",
       lockedBy: args.traderId,
-      lockedAt: Date.now(),
+      lockedAt: paymentTime,
       lockUtid: utid,
+      deliveryDeadline: deliveryDeadline, // Payment time + 6 hours
+      deliveryStatus: "pending", // Initial delivery status
     });
 
     // Step 3: Update listing status if needed
