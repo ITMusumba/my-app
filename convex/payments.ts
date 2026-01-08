@@ -120,7 +120,7 @@ async function lockUnitInternal(
   // Update listing status if needed
   const allUnits = await ctx.db
     .query("listingUnits")
-    .withIndex("by_listing", (q) => q.eq("listingId", listing._id))
+    .withIndex("by_listing", (q: any) => q.eq("listingId", listing._id))
     .collect();
 
   const availableCount = allUnits.filter((u) => u.status === "available").length;
