@@ -36,7 +36,7 @@ export function TraderListings({ userId }: TraderListingsProps) {
     setMessage(null);
     
     // Wait a moment for the query to load
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     if (!listingDetails) {
       setMessage({
