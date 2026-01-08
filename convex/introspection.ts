@@ -14,6 +14,7 @@
 
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Verify user is admin (shared helper)
@@ -231,9 +232,10 @@ export const getWalletLedgerByUTID = query({
     let entries;
     if (args.utid) {
       // Get entries for specific UTID
+      const utid = args.utid; // Type narrowing for TypeScript
       entries = await ctx.db
         .query("walletLedger")
-        .withIndex("by_utid", (q) => q.eq("utid", args.utid))
+        .withIndex("by_utid", (q) => q.eq("utid", utid))
         .collect();
     } else {
       // Get all entries
@@ -266,7 +268,12 @@ export const getWalletLedgerByUTID = query({
         for (const entry of entries) {
           if (!userAliases.has(entry.userId)) {
             const user = await ctx.db.get(entry.userId);
-            userAliases.set(entry.userId, user?.alias || "unknown");
+            // Type guard: ensure user exists and has alias property
+            if (user && "alias" in user) {
+              userAliases.set(entry.userId, user.alias);
+            } else {
+              userAliases.set(entry.userId, "unknown");
+            }
           }
         }
 
@@ -317,9 +324,10 @@ export const getInventoryUnitsByStatus = query({
 
     let units;
     if (args.status) {
+      const status = args.status; // Type narrowing for TypeScript
       units = await ctx.db
         .query("listingUnits")
-        .withIndex("by_status", (q) => q.eq("status", args.status))
+        .withIndex("by_status", (q) => q.eq("status", status))
         .collect();
     } else {
       // Get all units
@@ -344,18 +352,19 @@ export const getInventoryUnitsByStatus = query({
         const enrichedUnits = await Promise.all(
           statusUnits.map(async (unit) => {
             const listing = await ctx.db.get(unit.listingId);
-            const farmer = listing ? await ctx.db.get(listing.farmerId) : null;
+            // Type guard: ensure listing exists and has farmerId property (it's a listing, not another table type)
+            const farmer = listing && "farmerId" in listing ? await ctx.db.get(listing.farmerId as Id<"users">) : null;
             const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
 
             return {
               unitId: unit._id,
               unitNumber: unit.unitNumber,
               listingId: unit.listingId,
-              listingUtid: listing?.utid,
-              produceType: listing?.produceType,
-              pricePerKilo: listing?.pricePerKilo,
-              farmerAlias: farmer?.alias || null,
-              traderAlias: trader?.alias || null,
+              listingUtid: listing && "utid" in listing ? listing.utid : null,
+              produceType: listing && "produceType" in listing ? listing.produceType : null,
+              pricePerKilo: listing && "pricePerKilo" in listing ? listing.pricePerKilo : null,
+              farmerAlias: farmer && "alias" in farmer ? farmer.alias : null,
+              traderAlias: trader && "alias" in trader ? trader.alias : null,
               status: unit.status,
               lockedBy: unit.lockedBy,
               lockedAt: unit.lockedAt,
@@ -497,9 +506,10 @@ export const getBuyerPickupDeadlines = query({
 
     let purchases;
     if (args.status) {
+      const status = args.status; // Type narrowing for TypeScript
       purchases = await ctx.db
         .query("buyerPurchases")
-        .withIndex("by_status", (q) => q.eq("status", args.status))
+        .withIndex("by_status", (q) => q.eq("status", status))
         .collect();
     } else {
       purchases = await ctx.db

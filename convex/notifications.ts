@@ -74,7 +74,7 @@ async function findUsersByUTID(
   // 1. Wallet ledger entries (traders)
   const walletEntries = await ctx.db
     .query("walletLedger")
-    .withIndex("by_utid", (q) => q.eq("utid", targetUtid))
+    .withIndex("by_utid", (q: any) => q.eq("utid", targetUtid))
     .collect();
 
   for (const entry of walletEntries) {
@@ -90,7 +90,7 @@ async function findUsersByUTID(
   // 2. Listing units (farmers via listing, traders via lockedBy)
   const units = await ctx.db
     .query("listingUnits")
-    .withIndex("by_lock_utid", (q) => q.eq("lockUtid", targetUtid))
+    .withIndex("by_lock_utid", (q: any) => q.eq("lockUtid", targetUtid))
     .collect();
 
   for (const unit of units) {
@@ -119,7 +119,7 @@ async function findUsersByUTID(
   // 3. Buyer purchases (buyers, traders via inventory)
   const purchases = await ctx.db
     .query("buyerPurchases")
-    .withIndex("by_utid", (q) => q.eq("utid", targetUtid))
+    .withIndex("by_utid", (q: any) => q.eq("utid", targetUtid))
     .collect();
 
   for (const purchase of purchases) {
@@ -146,7 +146,7 @@ async function findUsersByUTID(
   // 4. Listings (farmers)
   const listings = await ctx.db
     .query("listings")
-    .withIndex("by_utid", (q) => q.eq("utid", targetUtid))
+    .withIndex("by_utid", (q: any) => q.eq("utid", targetUtid))
     .collect();
 
   for (const listing of listings) {
@@ -162,7 +162,7 @@ async function findUsersByUTID(
   // 5. Trader inventory (traders)
   const inventory = await ctx.db
     .query("traderInventory")
-    .withIndex("by_utid", (q) => q.eq("utid", targetUtid))
+    .withIndex("by_utid", (q: any) => q.eq("utid", targetUtid))
     .collect();
 
   for (const inv of inventory) {
@@ -178,7 +178,7 @@ async function findUsersByUTID(
   // 6. Admin actions (admins)
   const adminActions = await ctx.db
     .query("adminActions")
-    .withIndex("by_utid", (q) => q.eq("utid", targetUtid))
+    .withIndex("by_utid", (q: any) => q.eq("utid", targetUtid))
     .collect();
 
   for (const action of adminActions) {
@@ -272,7 +272,7 @@ export const sendRoleBasedNotification = mutation({
     // Get all users with the specified role
     const users = await ctx.db
       .query("users")
-      .withIndex("by_role", (q) => q.eq("role", args.role))
+      .withIndex("by_role", (q: any) => q.eq("role", args.role))
       .collect();
 
     const now = Date.now();
@@ -419,13 +419,13 @@ export const getUserNotifications = query({
     if (args.unreadOnly) {
       notifications = await ctx.db
         .query("notifications")
-        .withIndex("by_user_unread", (q) => q.eq("userId", args.userId).eq("read", false))
+        .withIndex("by_user_unread", (q: any) => q.eq("userId", args.userId).eq("read", false))
         .order("desc")
         .take(limit);
     } else {
       notifications = await ctx.db
         .query("notifications")
-        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .withIndex("by_user", (q: any) => q.eq("userId", args.userId))
         .order("desc")
         .take(limit);
     }
@@ -433,7 +433,7 @@ export const getUserNotifications = query({
     // Calculate unread count
     const allNotifications = await ctx.db
       .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q: any) => q.eq("userId", args.userId))
       .collect();
 
     const unreadCount = allNotifications.filter((n) => !n.read).length;
@@ -515,7 +515,7 @@ export const markAllNotificationsAsRead = mutation({
     // Get all unread notifications
     const unreadNotifications = await ctx.db
       .query("notifications")
-      .withIndex("by_user_unread", (q) => q.eq("userId", args.userId).eq("read", false))
+      .withIndex("by_user_unread", (q: any) => q.eq("userId", args.userId).eq("read", false))
       .collect();
 
     // Mark all as read
