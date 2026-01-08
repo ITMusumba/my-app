@@ -220,6 +220,7 @@ export const getPayToLockConfirmations = query({
         const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
 
         // Get wallet ledger entry for this lock (payment confirmation)
+        // Extract utid first to ensure proper type narrowing in callback
         const utid = unit.lockUtid;
         let walletEntry = null;
         if (utid) {
