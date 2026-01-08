@@ -74,7 +74,7 @@ async function lockUnitInternal(
   // Get current wallet balance
   const walletEntries = await ctx.db
     .query("walletLedger")
-    .withIndex("by_user", (q) => q.eq("userId", traderId))
+    .withIndex("by_user", (q: any) => q.eq("userId", traderId))
     .order("desc")
     .first();
 
