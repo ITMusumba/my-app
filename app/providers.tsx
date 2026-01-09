@@ -2,19 +2,10 @@
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
-
-// Get Convex URL from environment variable
-// For Vercel, this should be set in project settings
-function getConvexUrl(): string {
-  if (typeof window === "undefined") {
-    // Server-side: use process.env
-    return process.env.NEXT_PUBLIC_CONVEX_URL || "";
-  }
-  // Client-side: environment variables are injected at build time
-  return process.env.NEXT_PUBLIC_CONVEX_URL || "";
-}
+import { getDeploymentMode, getConvexUrl } from "./utils/deployment";
 
 export function Providers({ children }: { children: ReactNode }) {
+  const deploymentMode = useMemo(() => getDeploymentMode(), []);
   const convexUrl = useMemo(() => getConvexUrl(), []);
   
   const convex = useMemo(() => {
@@ -23,21 +14,21 @@ export function Providers({ children }: { children: ReactNode }) {
       return null;
     }
     try {
-      console.log("Creating Convex client with URL:", convexUrl);
+      console.log(`[${deploymentMode.toUpperCase()}] Creating Convex client with URL:`, convexUrl);
       const client = new ConvexReactClient(convexUrl);
-      console.log("Convex client created successfully");
+      console.log(`[${deploymentMode.toUpperCase()}] Convex client created successfully`);
       return client;
     } catch (error) {
-      console.error("Failed to create Convex client:", error);
+      console.error(`[${deploymentMode.toUpperCase()}] Failed to create Convex client:`, error);
       return null;
     }
-  }, [convexUrl]);
+  }, [convexUrl, deploymentMode]);
 
   if (!convex) {
-    console.warn("Convex client is null - rendering without provider");
+    console.warn(`[${deploymentMode.toUpperCase()}] Convex client is null - rendering without provider`);
     return <>{children}</>;
   }
   
-  console.log("Rendering with ConvexProvider");
+  console.log(`[${deploymentMode.toUpperCase()}] Rendering with ConvexProvider`);
   return <ConvexProvider client={convex}>{children}</ConvexProvider>;
 }

@@ -60,6 +60,29 @@ my-app/
 └── README.md
 ```
 
+## Deployment Modes
+
+This application supports **two separate deployment modes** with separate URLs:
+
+- **Pilot Mode**: Stable deployment that continues running in its current state
+- **Dev Mode**: Development deployment where you can build full functionality without affecting pilot
+
+Both deployments run simultaneously with completely separate:
+- Frontend URLs (Vercel)
+- Backend deployments (Convex)
+- Databases
+- Environment variables
+
+**See `docs/deployment_modes_setup.md` for complete setup instructions.**
+
+### Quick Setup
+
+1. **Create two Convex deployments** (pilot and dev)
+2. **Create two Vercel projects** (pilot and dev)
+3. **Configure environment variables**:
+   - Pilot: `NEXT_PUBLIC_CONVEX_URL` (pilot Convex URL), `NEXT_PUBLIC_DEPLOYMENT_MODE=pilot`
+   - Dev: `NEXT_PUBLIC_CONVEX_URL` (dev Convex URL), `NEXT_PUBLIC_DEPLOYMENT_MODE=dev`
+
 ## Setup
 
 ### Prerequisites

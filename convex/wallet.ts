@@ -70,8 +70,9 @@ export const getWalletBalance = query({
 /**
  * Ensure trader has minimum capital (1,000,000 UGX)
  * Called automatically to ensure traders always have demo capital
+ * Exported for use in payments.ts
  */
-async function ensureTraderCapital(
+export async function ensureTraderCapital(
   ctx: any,
   traderId: string
 ): Promise<{ restored: boolean; utid?: string }> {
