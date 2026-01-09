@@ -10,6 +10,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { generateUTID } from "./utils";
+import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 
 /**
  * Verify user is admin
