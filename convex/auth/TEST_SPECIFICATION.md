@@ -287,15 +287,28 @@
 
 ### Test Category: authorize() Allow vs Deny vs Error
 
-**Purpose**: Ensure authorize() correctly distinguishes allow, deny, and error  
-**Contract Protected**: authorize() function signature (types.ts)  
-**Specification Clause**: SPECIFICATION.md Section 4 (Allowed Operations)  
-**Test Specification**:
-- Verify that `authorize()` returns `AuthorizationDecision` with `allowed: true` when userRole matches requiredRole
-- Verify that `authorize()` returns `AuthorizationDecision` with `allowed: false` when userRole does not match requiredRole
-- Verify that `authorize()` returns `ErrorEnvelope` when context is invalid (missing userId, missing userRole, invalid userRole)
-- Verify that `authorize()` returns `ErrorEnvelope` when requiredRole is invalid
-- Verify that allow, deny, and error are mutually exclusive (only one can occur)
+**Name**: authorize() Allow vs Deny vs Error Behavior
+
+**Purpose**: Ensure authorize() correctly distinguishes allow, deny, and error outcomes
+
+**Conceptual Inputs**:
+- Valid AuthorizationContext with userId, userRole, optional operation/resource/metadata
+- Valid requiredRole (UserRole: "farmer" | "trader" | "buyer" | "admin")
+- Invalid AuthorizationContext (missing userId, missing userRole, invalid userRole)
+- Invalid requiredRole (not a valid UserRole value)
+
+**Expected Outcome**:
+- When userRole matches requiredRole: Returns `AuthorizationDecision` with `allowed: true`
+- When userRole does not match requiredRole: Returns `AuthorizationDecision` with `allowed: false`
+- When context is invalid (missing userId, missing userRole, invalid userRole): Returns `ErrorEnvelope`
+- When requiredRole is invalid: Returns `ErrorEnvelope`
+- Allow, deny, and error are mutually exclusive (only one can occur)
+- Denial (allowed: false) is distinct from error (ErrorEnvelope)
+
+**Invariants Protected**:
+- INVARIANT 2.1: Server-Side Authorization Enforcement (authorization check is server-side)
+
+**BLOCKED Notes**: None
 
 **Failure Criteria**: If authorize() does not correctly distinguish allow, deny, and error, test must fail
 
@@ -365,15 +378,26 @@
 
 ### Test Category: verifyAdminRole() Allow vs Deny vs Error
 
-**Purpose**: Ensure verifyAdminRole() correctly distinguishes allow, deny, and error  
-**Contract Protected**: verifyAdminRole() function signature (types.ts)  
-**Specification Clause**: SPECIFICATION.md Section 4 (Admin Role Verification)  
-**Invariant Protected**: INVARIANT 2.2 (Admin Role Verification)  
-**Test Specification**:
-- Verify that `verifyAdminRole()` returns `AuthorizationDecision` with `allowed: true` when userRole === "admin"
-- Verify that `verifyAdminRole()` returns `AuthorizationDecision` with `allowed: false` when userRole !== "admin"
-- Verify that `verifyAdminRole()` returns `ErrorEnvelope` when context is invalid (missing userId, missing userRole, invalid userRole)
-- Verify that allow, deny, and error are mutually exclusive (only one can occur)
+**Name**: verifyAdminRole() Allow vs Deny vs Error Behavior
+
+**Purpose**: Ensure verifyAdminRole() correctly distinguishes allow, deny, and error outcomes
+
+**Conceptual Inputs**:
+- Valid AuthorizationContext with userRole === "admin"
+- Valid AuthorizationContext with userRole !== "admin" (farmer, trader, buyer)
+- Invalid AuthorizationContext (missing userId, missing userRole, invalid userRole)
+
+**Expected Outcome**:
+- When userRole === "admin": Returns `AuthorizationDecision` with `allowed: true`
+- When userRole !== "admin": Returns `AuthorizationDecision` with `allowed: false`
+- When context is invalid (missing userId, missing userRole, invalid userRole): Returns `ErrorEnvelope`
+- Allow, deny, and error are mutually exclusive (only one can occur)
+- Denial (allowed: false) is distinct from error (ErrorEnvelope)
+
+**Invariants Protected**:
+- INVARIANT 2.2: Admin Role Verification (admin role verification is server-side)
+
+**BLOCKED Notes**: None
 
 **Failure Criteria**: If verifyAdminRole() does not correctly distinguish allow, deny, and error, test must fail
 
