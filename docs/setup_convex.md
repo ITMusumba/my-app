@@ -1,23 +1,62 @@
 # Convex Setup Guide
 
+## Deployment Modes
+
+This project supports two deployment modes:
+- **Pilot Mode**: Stable deployment (`https://chatty-camel-373.convex.cloud`)
+- **Dev Mode**: Development deployment (separate Convex project)
+
+See `docs/setup_dev_mode.md` for setting up dev mode.
+
 ## Environment Variables
 
-### For Local Development
+### For Local Development (Pilot Mode)
 
 Create a `.env.local` file in the project root:
 
 ```bash
 NEXT_PUBLIC_CONVEX_URL=https://chatty-camel-373.convex.cloud
+NEXT_PUBLIC_DEPLOYMENT_MODE=pilot
 ```
 
-### For Vercel Deployment
+**Note**: If `NEXT_PUBLIC_DEPLOYMENT_MODE` is not set, it defaults to `pilot` for backward compatibility.
 
-1. Go to your Vercel project dashboard
+### For Local Development (Dev Mode)
+
+Create a `.env.local` file in the project root:
+
+```bash
+NEXT_PUBLIC_CONVEX_URL=https://dev-xxx.convex.cloud
+NEXT_PUBLIC_DEPLOYMENT_MODE=dev
+```
+
+**Note**: Replace `https://dev-xxx.convex.cloud` with your actual dev Convex URL.
+
+### For Vercel Deployment (Pilot)
+
+1. Go to your **Pilot** Vercel project dashboard
 2. Navigate to **Settings** → **Environment Variables**
-3. Add a new variable:
+3. Add variables:
    - **Name**: `NEXT_PUBLIC_CONVEX_URL`
-   - **Value**: `https://chatty-camel-373.convex.cloud`
-   - **Environment**: Production, Preview, Development (select all)
+     - **Value**: `https://chatty-camel-373.convex.cloud`
+     - **Environment**: Production, Preview, Development (select all)
+   - **Name**: `NEXT_PUBLIC_DEPLOYMENT_MODE`
+     - **Value**: `pilot`
+     - **Environment**: Production, Preview, Development (select all)
+4. Click **Save**
+5. Redeploy your application (or it will auto-deploy on next push)
+
+### For Vercel Deployment (Dev)
+
+1. Go to your **Dev** Vercel project dashboard
+2. Navigate to **Settings** → **Environment Variables**
+3. Add variables:
+   - **Name**: `NEXT_PUBLIC_CONVEX_URL`
+     - **Value**: `https://dev-xxx.convex.cloud` (your dev Convex URL)
+     - **Environment**: Production, Preview, Development (select all)
+   - **Name**: `NEXT_PUBLIC_DEPLOYMENT_MODE`
+     - **Value**: `dev`
+     - **Environment**: Production, Preview, Development (select all)
 4. Click **Save**
 5. Redeploy your application (or it will auto-deploy on next push)
 
@@ -25,14 +64,32 @@ NEXT_PUBLIC_CONVEX_URL=https://chatty-camel-373.convex.cloud
 
 After setting the environment variable, you need to deploy your Convex functions to regenerate the API:
 
+### Deploy to Pilot
+
+```bash
+npm run deploy:pilot
+# or
+npx convex deploy --project-name pilot-farm2market
+```
+
+### Deploy to Dev
+
+```bash
+npm run deploy:dev
+# or
+npx convex deploy --project-name dev-farm2market
+```
+
+### Deploy to Default (Current Project)
+
 ```bash
 npx convex deploy
 ```
 
-This will:
-- Deploy all Convex functions to your deployment
-- Regenerate `convex/_generated/api.d.ts` with all available modules
-- Make the `pilotMode` and other modules available to the frontend
+**What this does:**
+- Deploys all Convex functions to your deployment
+- Regenerates `convex/_generated/api.d.ts` with all available modules
+- Makes the `pilotMode` and other modules available to the frontend
 
 ## Verify Connection
 
