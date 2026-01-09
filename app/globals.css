@@ -15,8 +15,8 @@ body {
     Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   color: #333;
   background: #f5f5f5;
-  /* Ugandan farming background */
-  background-image: url('https://images.unsplash.com/photo-1574943320219-553eb213f72d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+  /* Ugandan farming background - real agricultural scene */
+  background-image: url('https://images.unsplash.com/photo-1625246333195-78d9c38ad449?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
@@ -24,7 +24,7 @@ body {
   position: relative;
 }
 
-/* Overlay for better text readability */
+/* Overlay for better text readability - semi-transparent white */
 body::before {
   content: '';
   position: fixed;
@@ -32,7 +32,7 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   z-index: -1;
   pointer-events: none;
 }
