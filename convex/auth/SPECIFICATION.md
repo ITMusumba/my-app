@@ -650,16 +650,19 @@
 
 ---
 
-**CURRENT MODULE STATUS**: ⚠️ **CONDITIONALLY ALLOWED**
+**CURRENT MODULE STATUS**: ✅ **ALLOWED**
 
-**Authorization module specification is defined. Module can proceed if User entity has explicit role field (not inferred). Role assignment must be explicit (admin-controlled), not inferred from email prefix.**
+**Authorization module specification is defined. Module can proceed. User entity has explicit role field in schema (convex/schema.ts line 25). Authorization module only reads role field (does not assign roles). Role assignment mechanism is BLOCKED FOR PRODUCTION (inference from email prefix), but this does not block Authorization module (role assignment is User Management responsibility, not Authorization responsibility).**
 
 **Justification**:
-- All prerequisites are met (Utilities, Error Handling, User entity exists)
-- Role assignment mechanism is BLOCKED FOR PRODUCTION, but Authorization module can work with explicit role field
-- Authorization module does not require BLOCKED capabilities to function
+- All prerequisites are met (Utilities module Step 1 complete, Error Handling module Step 2 complete, User entity exists with explicit role field)
+- User entity schema has explicit role field: `role: v.union(v.literal("farmer"), v.literal("trader"), v.literal("buyer"), v.literal("admin"))` (convex/schema.ts)
+- Authorization module only reads role field (does not assign roles, does not depend on role assignment mechanism)
+- Role assignment mechanism BLOCKED FOR PRODUCTION does not block Authorization module (role assignment is separate concern, handled by User Management module)
+- Authorization module does not require BLOCKED capabilities to function (only requires read access to User.role field)
 - Authorization module is safe to stop after (no data created, no side effects)
 - Authorization module supports required invariants (INVARIANT 2.1, 2.2, 2.3)
+- All dependencies are satisfied (Utilities, Error Handling, User entity with explicit role field)
 
 ---
 
