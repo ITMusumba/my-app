@@ -170,6 +170,9 @@ export default function ResetTransactionsPage() {
             {results.summary && (
               <ul style={{ margin: "0.5rem 0", paddingLeft: "1.5rem" }}>
                 <li>Wallet Entries Deleted: {results.summary.totalWalletEntriesDeleted || 0}</li>
+                <li style={{ color: "#2e7d32", fontWeight: "600" }}>
+                  ✅ Traders Restored: {results.summary.tradersRestored || 0} (each with 1,000,000 UGX)
+                </li>
                 <li>Units Unlocked: {results.summary.totalUnitsUnlocked || 0}</li>
                 <li>Inventory Deleted: {results.summary.totalInventoryDeleted || 0}</li>
                 <li>Purchases Deleted: {results.summary.totalPurchasesDeleted || 0}</li>
