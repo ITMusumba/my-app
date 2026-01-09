@@ -26,6 +26,8 @@ import type * as pilotSetup from "../pilotSetup.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as traderDashboard from "../traderDashboard.js";
 import type * as utils from "../utils.js";
+import type * as utils_index from "../utils/index.js";
+import type * as utils_types from "../utils/types.js";
 import type * as wallet from "../wallet.js";
 
 import type {
@@ -53,6 +55,8 @@ declare const fullApi: ApiFromModules<{
   rateLimits: typeof rateLimits;
   traderDashboard: typeof traderDashboard;
   utils: typeof utils;
+  "utils/index": typeof utils_index;
+  "utils/types": typeof utils_types;
   wallet: typeof wallet;
 }>;
 
