@@ -328,6 +328,7 @@ export const resetAllTransactions = mutation({
 
     const results = {
       walletLedgerEntriesDeleted: 0,
+      tradersRestored: 0,
       unitsUnlocked: 0,
       inventoryDeleted: 0,
       buyerPurchasesDeleted: 0,
