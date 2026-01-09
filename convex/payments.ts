@@ -41,6 +41,11 @@ async function lockUnitInternal(
     throw new Error("User is not a trader");
   }
 
+  // Ensure trader has 1,000,000 UGX capital for demo purchases
+  // This ensures traders can always make purchases in pilot mode
+  const { ensureTraderCapital } = await import("./wallet");
+  await ensureTraderCapital(ctx, traderId);
+
   // Rate limit check
   await checkRateLimit(ctx, traderId, user.role, "lock_unit", {
     unitId: unitId,
