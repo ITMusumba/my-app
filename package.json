@@ -9,8 +9,8 @@
     "lint": "next lint",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
-    "deploy:pilot": "npx convex deploy --project-name pilot-farm2market",
-    "deploy:dev": "npx convex deploy --project-name dev-farm2market"
+    "deploy:pilot": "npx convex deploy --yes",
+    "deploy:dev": "npx convex deploy --env-file .env.local --yes"
   },
   "dependencies": {
     "next": "^14.2.0",

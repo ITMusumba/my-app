@@ -14,9 +14,11 @@ if ($currentBranch -ne "develop" -and $currentBranch -ne "dev") {
     }
 }
 
-# Deploy to dev
-npx convex deploy --project-name dev-farm2market
+# Deploy to dev using .env.local configuration
+Write-Host "Deploying to: https://adamant-armadillo-601.convex.cloud" -ForegroundColor Cyan
+npx convex deploy --env-file .env.local --yes
 
 Write-Host ""
 Write-Host "✅ Dev deployment complete!" -ForegroundColor Green
-Write-Host "📝 Make sure NEXT_PUBLIC_CONVEX_URL is set to the dev URL in Vercel" -ForegroundColor Yellow
+Write-Host "📝 Dev Convex URL: https://adamant-armadillo-601.convex.cloud" -ForegroundColor Yellow
+Write-Host "📝 Make sure NEXT_PUBLIC_CONVEX_URL is set to this URL in Vercel" -ForegroundColor Yellow

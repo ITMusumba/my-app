@@ -16,9 +16,11 @@ if [ "$CURRENT_BRANCH" != "develop" ] && [ "$CURRENT_BRANCH" != "dev" ]; then
   fi
 fi
 
-# Deploy to dev
-npx convex deploy --project-name dev-farm2market
+# Deploy to dev using .env.local configuration
+echo "Deploying to: https://adamant-armadillo-601.convex.cloud"
+npx convex deploy --env-file .env.local --yes
 
 echo ""
 echo "✅ Dev deployment complete!"
-echo "📝 Make sure NEXT_PUBLIC_CONVEX_URL is set to the dev URL in Vercel"
+echo "📝 Dev Convex URL: https://adamant-armadillo-601.convex.cloud"
+echo "📝 Make sure NEXT_PUBLIC_CONVEX_URL is set to this URL in Vercel"

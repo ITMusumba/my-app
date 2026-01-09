@@ -17,20 +17,24 @@
 
 ---
 
-## Dev Deployment ⏳ (To Be Created)
+## Dev Deployment ✅ (Created)
 
-- **Status**: ⏳ Not yet set up
-- **Convex URL**: `https://dev-xxx.convex.cloud` (to be created)
+- **Status**: ✅ Convex deployment created
+- **Convex URL**: `https://adamant-armadillo-601.convex.cloud`
+- **Deployment Name**: `adamant-armadillo-601`
+- **Project Name**: `dev-farm2market`
+- **Dashboard**: https://dashboard.convex.dev/d/adamant-armadillo-601
 - **Deployment Mode**: `dev`
-- **Vercel Project**: To be created
-- **Branch**: `develop` (recommended)
+- **Vercel Project**: ⏳ To be created
+- **Branch**: `develop` ✅
 - **Database**: Dev database (test data, separate from pilot)
 
 **Next Steps:**
-1. Create dev Convex deployment (see `docs/setup_dev_mode.md`)
-2. Create dev Vercel project
-3. Configure environment variables
-4. Test deployment
+1. ✅ Create dev Convex deployment - DONE
+2. ⏳ Deploy Convex functions to dev
+3. ⏳ Create dev Vercel project
+4. ⏳ Configure Vercel environment variables
+5. ⏳ Test deployment
 
 ---
 
