@@ -56,7 +56,7 @@ export default function LoginPage() {
       alignItems: "center",
       minHeight: "100vh",
       padding: "2rem",
-      background: "#f5f5f5"
+      background: "transparent"
     }}>
       <div style={{
         background: "#fff",
