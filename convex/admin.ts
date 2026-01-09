@@ -335,8 +335,17 @@ export const resetAllTransactions = mutation({
     };
 
     try {
-      // 1. Delete all wallet ledger entries
+      // 1. Delete all wallet ledger entries EXCEPT capital_deposit entries
+      // Then restore 1,000,000 UGX capital deposit for each trader
       const walletEntries = await ctx.db.query("walletLedger").collect();
+      
+      // Get all traders first
+      const traders = await ctx.db
+        .query("users")
+        .withIndex("by_role", (q: any) => q.eq("role", "trader"))
+        .collect();
+      
+      // Delete all wallet entries (we'll restore capital deposits after)
       for (const entry of walletEntries) {
         try {
           await ctx.db.delete(entry._id);
@@ -345,6 +354,35 @@ export const resetAllTransactions = mutation({
           results.errors.push(`Failed to delete wallet entry ${entry._id}: ${error.message}`);
         }
       }
+      
+      // Restore 1,000,000 UGX capital deposit for each trader
+      const { MAX_TRADER_EXPOSURE_UGX } = await import("./constants");
+      const { generateUTID } = await import("./utils");
+      
+      let tradersRestored = 0;
+      for (const trader of traders) {
+        try {
+          const utid = generateUTID("admin");
+          await ctx.db.insert("walletLedger", {
+            userId: trader._id,
+            utid,
+            type: "capital_deposit",
+            amount: MAX_TRADER_EXPOSURE_UGX, // 1,000,000 UGX
+            balanceAfter: MAX_TRADER_EXPOSURE_UGX,
+            timestamp: Date.now(),
+            metadata: {
+              source: "admin_reset_restore",
+              reason: args.reason,
+              restored: true,
+            },
+          });
+          tradersRestored++;
+        } catch (error: any) {
+          results.errors.push(`Failed to restore capital for trader ${trader.alias}: ${error.message}`);
+        }
+      }
+      
+      results.tradersRestored = tradersRestored;
 
       // 2. Unlock all locked units
       const lockedUnits = await ctx.db
@@ -436,6 +474,7 @@ export const resetAllTransactions = mutation({
         results,
         summary: {
           totalWalletEntriesDeleted: results.walletLedgerEntriesDeleted,
+          tradersRestored: results.tradersRestored,
           totalUnitsUnlocked: results.unitsUnlocked,
           totalInventoryDeleted: results.inventoryDeleted,
           totalPurchasesDeleted: results.buyerPurchasesDeleted,
