@@ -132,28 +132,118 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
           <p style={{ color: "#666" }}>No inventory in storage</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {inventory.inventory.map((item: any, index: number) => (
-              <div key={index} style={{
-                padding: "1rem",
-                background: "#f5f5f5",
-                borderRadius: "8px",
-                border: "1px solid #e0e0e0"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
-                      {item.produceType} - {item.totalKilos} kg
+            {inventory.inventory.map((item: any, index: number) => {
+              const totalPrice = item.originalPricePerKilo * item.totalKilos;
+              const projectedRemainingPrice = item.originalPricePerKilo * item.projectedKilosRemaining;
+              
+              return (
+                <div key={index} style={{
+                  padding: "1.5rem",
+                  background: "#f9f9f9",
+                  borderRadius: "8px",
+                  border: "1px solid #e0e0e0"
+                }}>
+                  {/* Header with UTID */}
+                  <div style={{ 
+                    marginBottom: "1rem", 
+                    paddingBottom: "0.75rem", 
+                    borderBottom: "1px solid #e0e0e0" 
+                  }}>
+                    <div style={{ 
+                      fontSize: "0.75rem", 
+                      color: "#666", 
+                      marginBottom: "0.25rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>
+                      Transaction UTID
                     </div>
-                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                      Projected loss: {item.projectedLossKg.toFixed(2)} kg/day
+                    <div style={{ 
+                      fontSize: "0.9rem", 
+                      color: "#1a1a1a", 
+                      fontFamily: "monospace",
+                      fontWeight: "600"
+                    }}>
+                      {item.utid}
                     </div>
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#999", fontFamily: "monospace" }}>
-                    {item.utid}
+
+                  {/* Produce Type and Quantity */}
+                  <div style={{ marginBottom: "1rem" }}>
+                    <div style={{ 
+                      fontSize: "1.1rem", 
+                      fontWeight: "600", 
+                      marginBottom: "0.5rem",
+                      color: "#1a1a1a"
+                    }}>
+                      {item.produceType}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>
+                          Quantity (Kilos)
+                        </div>
+                        <div style={{ fontSize: "1rem", fontWeight: "600", color: "#1976d2" }}>
+                          {item.totalKilos.toFixed(2)} kg
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.25rem" }}>
+                          Original: {item.originalKilos.toFixed(2)} kg
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>
+                          Price per Kilo
+                        </div>
+                        <div style={{ fontSize: "1rem", fontWeight: "600", color: "#2e7d32" }}>
+                          {formatUGX(item.originalPricePerKilo)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>
+                          Total Value
+                        </div>
+                        <div style={{ fontSize: "1rem", fontWeight: "600", color: "#1a1a1a" }}>
+                          {formatUGX(totalPrice)}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.25rem" }}>
+                          Projected: {formatUGX(projectedRemainingPrice)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Storage Details */}
+                  <div style={{ 
+                    padding: "0.75rem", 
+                    background: "#fff", 
+                    borderRadius: "6px",
+                    border: "1px solid #e0e0e0"
+                  }}>
+                    <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                      Storage Information
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", fontSize: "0.85rem" }}>
+                      <div>
+                        <div style={{ color: "#999" }}>Days in Storage</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.daysInStorage.toFixed(1)} days</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999" }}>Projected Loss</div>
+                        <div style={{ fontWeight: "600", color: "#d32f2f" }}>{item.projectedKilosLost.toFixed(2)} kg</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999" }}>Remaining</div>
+                        <div style={{ fontWeight: "600", color: "#2e7d32" }}>{item.projectedKilosRemaining.toFixed(2)} kg</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999" }}>Loss Rate</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.storageFeeRate} kg/day</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
