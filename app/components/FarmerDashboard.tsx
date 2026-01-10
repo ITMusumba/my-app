@@ -29,8 +29,8 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
   };
 
   return (
-    <div>
-      <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", color: "#1a1a1a" }}>
+    <div style={{ padding: "1rem", maxWidth: "100%", boxSizing: "border-box" }}>
+      <h2 style={{ fontSize: "clamp(1.5rem, 4vw, 1.8rem)", marginBottom: "1.5rem", color: "#1a1a1a" }}>
         Farmer Dashboard
       </h2>
 
@@ -39,14 +39,14 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
 
       {/* My Listings */}
       <div style={{
-        marginBottom: "2rem",
-        padding: "1.5rem",
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           My Listings
         </h3>
         {listings === undefined ? (
@@ -71,9 +71,6 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                       Price: UGX {listing.pricePerKilo.toLocaleString()}/kg
                     </div>
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "#999", fontFamily: "monospace" }}>
-                    {listing.utid}
-                  </div>
                 </div>
                 <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#666" }}>
                   <span>Available: {listing.units.available}</span>
@@ -88,14 +85,14 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
 
       {/* Active Negotiations */}
       <div style={{
-        marginBottom: "2rem",
-        padding: "1.5rem",
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           Active Negotiations
         </h3>
         {negotiations === undefined ? (

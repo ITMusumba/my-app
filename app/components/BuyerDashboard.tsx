@@ -58,7 +58,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
 
       setPurchaseMessage({
         type: "success",
-        text: `Purchase successful! UTID: ${result.purchaseUtid}. You have 48 hours to pick up ${kilos} kg.`,
+        text: `Purchase successful! You have 48 hours to pick up ${kilos} kg.`,
       });
 
       // Clear input
@@ -79,21 +79,21 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
   };
 
   return (
-    <div>
-      <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", color: "#1a1a1a" }}>
+    <div style={{ padding: "1rem", maxWidth: "100%", boxSizing: "border-box" }}>
+      <h2 style={{ fontSize: "clamp(1.5rem, 4vw, 1.8rem)", marginBottom: "1.5rem", color: "#1a1a1a" }}>
         Buyer Dashboard
       </h2>
 
       {/* Purchase Window Status */}
       <div style={{
-        marginBottom: "2rem",
-        padding: "1.5rem",
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: windowStatus?.isOpen ? "#e8f5e9" : "#ffebee",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: `1px solid ${windowStatus?.isOpen ? "#4caf50" : "#ef5350"}`
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           Purchase Window
         </h3>
         {windowStatus === undefined ? (
@@ -124,14 +124,14 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
 
       {/* Available Inventory */}
       <div style={{
-        marginBottom: "2rem",
-        padding: "1.5rem",
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           Available Inventory
         </h3>
         
@@ -161,85 +161,85 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
               
               return (
                 <div key={index} style={{
-                  padding: "1.5rem",
+                  padding: "clamp(1rem, 3vw, 1.5rem)",
                   background: "#f9f9f9",
                   borderRadius: "8px",
                   border: "1px solid #e0e0e0"
                 }}>
                   <div style={{ marginBottom: "1rem" }}>
-                    <div style={{ fontWeight: "600", marginBottom: "0.5rem", fontSize: "1.1rem" }}>
+                    <div style={{ fontWeight: "600", marginBottom: "0.5rem", fontSize: "clamp(1rem, 3.5vw, 1.1rem)" }}>
                       {item.produceType}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", fontSize: "0.9rem", color: "#666" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.75rem", fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#666" }}>
                       <div>
-                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Available Quantity</div>
-                        <div style={{ fontWeight: "600", color: "#1976d2" }}>{item.totalKilos} kg</div>
+                        <div style={{ color: "#999", fontSize: "clamp(0.75rem, 2vw, 0.85rem)" }}>Available</div>
+                        <div style={{ fontWeight: "600", color: "#1976d2", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>{item.totalKilos} kg</div>
                       </div>
                       <div>
-                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Block Size</div>
-                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.blockSize} kg blocks</div>
+                        <div style={{ color: "#999", fontSize: "clamp(0.75rem, 2vw, 0.85rem)" }}>Block Size</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>{item.blockSize} kg</div>
                       </div>
                       <div>
-                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Trader</div>
-                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.traderAlias}</div>
-                      </div>
-                      <div>
-                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Transaction UTID</div>
-                        <div style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#666" }}>{item.inventoryUtid}</div>
+                        <div style={{ color: "#999", fontSize: "clamp(0.75rem, 2vw, 0.85rem)" }}>Trader</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>{item.traderAlias}</div>
                       </div>
                     </div>
                   </div>
 
                   {windowStatus?.isOpen ? (
                     <div style={{ 
-                      padding: "1rem", 
+                      padding: "clamp(0.75rem, 2.5vw, 1rem)", 
                       background: "#fff", 
                       borderRadius: "6px",
                       border: "1px solid #e0e0e0"
                     }}>
-                      <div style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "#666" }}>
-                        <strong>Make Purchase:</strong> Enter quantity (kilos) to purchase
+                      <div style={{ marginBottom: "0.75rem", fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#666" }}>
+                        <strong>Make Purchase:</strong> Enter quantity (kilos)
                       </div>
-                      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-                        <input
-                          type="number"
-                          min="1"
-                          max={item.totalKilos}
-                          step="0.01"
-                          value={kilosInput[itemId] || ""}
-                          onChange={(e) => setKilosInput({ ...kilosInput, [itemId]: e.target.value })}
-                          placeholder="Enter kilos"
-                          disabled={isPurchasing}
-                          style={{
-                            padding: "0.75rem",
-                            border: "1px solid #ddd",
-                            borderRadius: "6px",
-                            fontSize: "0.9rem",
-                            width: "150px",
-                            fontFamily: "inherit"
-                          }}
-                        />
-                        <button
-                          onClick={() => handlePurchase(itemId, item.totalKilos)}
-                          disabled={isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0}
-                          style={{
-                            padding: "0.75rem 1.5rem",
-                            background: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "#ccc" : "#1976d2",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "6px",
-                            fontSize: "0.9rem",
-                            fontWeight: "600",
-                            cursor: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "not-allowed" : "pointer"
-                          }}
-                        >
-                          {isPurchasing ? "Purchasing..." : "Purchase"}
-                        </button>
-                        <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                          <input
+                            type="number"
+                            min="1"
+                            max={item.totalKilos}
+                            step="0.01"
+                            value={kilosInput[itemId] || ""}
+                            onChange={(e) => setKilosInput({ ...kilosInput, [itemId]: e.target.value })}
+                            placeholder="Enter kilos"
+                            disabled={isPurchasing}
+                            style={{
+                              padding: "clamp(0.6rem, 2vw, 0.75rem)",
+                              border: "1px solid #ddd",
+                              borderRadius: "6px",
+                              fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                              flex: "1",
+                              minWidth: "120px",
+                              fontFamily: "inherit"
+                            }}
+                          />
+                          <button
+                            onClick={() => handlePurchase(itemId, item.totalKilos)}
+                            disabled={isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0}
+                            style={{
+                              padding: "clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)",
+                              background: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "#ccc" : "#1976d2",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "6px",
+                              fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                              fontWeight: "600",
+                              cursor: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "not-allowed" : "pointer",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {isPurchasing ? "Purchasing..." : "Purchase"}
+                          </button>
+                        </div>
+                        <div style={{ fontSize: "clamp(0.75rem, 2vw, 0.85rem)", color: "#666" }}>
                           Max: {item.totalKilos} kg
                         </div>
                       </div>
-                      <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#999" }}>
+                      <p style={{ margin: "0.5rem 0 0 0", fontSize: "clamp(0.7rem, 2vw, 0.8rem)", color: "#999" }}>
                         ⚠️ You have 48 hours to pick up after purchase.
                       </p>
                     </div>
@@ -264,13 +264,13 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
 
       {/* My Orders */}
       <div style={{
-        padding: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           My Orders
         </h3>
         {orders === undefined ? (
@@ -298,9 +298,6 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                   color: order.isPastDeadline ? "#c62828" : "#2e7d32"
                 }}>
                   {order.isPastDeadline ? `${order.hoursOverdue.toFixed(1)}h overdue` : `${order.hoursRemaining.toFixed(1)}h remaining`}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem", fontFamily: "monospace" }}>
-                  UTID: {order.purchaseUtid}
                 </div>
               </div>
             ))}

@@ -54,7 +54,7 @@ export function TraderListings({ userId }: TraderListingsProps) {
 
   return (
     <div>
-      <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+      <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
         Available Listings (Negotiations)
       </h3>
 
@@ -83,37 +83,34 @@ export function TraderListings({ userId }: TraderListingsProps) {
             <div
               key={listing.listingId}
               style={{
-                padding: "1.5rem",
+                padding: "clamp(1rem, 3vw, 1.5rem)",
                 background: "#fff",
                 borderRadius: "12px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                 border: "1px solid #e0e0e0",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "1rem" }}>
+              <div style={{ marginBottom: "1rem" }}>
                 <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "1.2rem", color: "#1a1a1a" }}>
+                  <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "clamp(1rem, 3.5vw, 1.2rem)", color: "#1a1a1a" }}>
                     {listing.produceType}
                   </h4>
-                  <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.9rem", color: "#666", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-                    <span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))", gap: "0.75rem", fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#666", marginBottom: "0.5rem" }}>
+                    <div>
                       <strong>Total:</strong> {listing.totalKilos} kg ({listing.totalUnits} units)
-                    </span>
-                    <span>
+                    </div>
+                    <div>
                       <strong>Price:</strong> {formatUGX(listing.pricePerKilo)}/kg
-                    </span>
-                    <span>
-                      <strong>Unit Price:</strong> {formatUGX(listing.pricePerKilo * 10)} (10kg)
-                    </span>
-                    <span>
+                    </div>
+                    <div>
+                      <strong>Unit:</strong> {formatUGX(listing.pricePerKilo * 10)} (10kg)
+                    </div>
+                    <div>
                       <strong>Available:</strong> {listing.availableUnits || listing.totalUnits} units
-                    </span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#999" }}>
+                  <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#999" }}>
                     Farmer: {listing.farmerAlias} | Listed: {formatDate(listing.createdAt)}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#999", fontFamily: "monospace", marginTop: "0.25rem" }}>
-                    UTID: {listing.utid}
                   </div>
                 </div>
               </div>
@@ -126,15 +123,16 @@ export function TraderListings({ userId }: TraderListingsProps) {
                   onClick={() => handleLockUnit(listing.listingId)}
                   disabled={locking !== null || (listing.availableUnits || 0) === 0}
                   style={{
-                    padding: "0.75rem 1.5rem",
+                    padding: "clamp(0.6rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)",
                     background: locking === listing.listingId || (listing.availableUnits || 0) === 0 ? "#ccc" : "#1976d2",
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     cursor: locking === listing.listingId || (listing.availableUnits || 0) === 0 ? "not-allowed" : "pointer",
-                    fontSize: "0.9rem",
+                    fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
                     fontWeight: "600",
                     marginTop: "0.5rem",
+                    width: "100%",
                   }}
                 >
                   {locking === listing.listingId
