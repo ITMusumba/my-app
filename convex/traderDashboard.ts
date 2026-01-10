@@ -179,11 +179,26 @@ export const getTraderActiveUTIDs = query({
 
     for (const entry of walletEntries) {
       if (!utidMap.has(entry.utid)) {
+        // Determine state based on entry type
+        let state = "Active";
+        if (entry.type === "capital_deposit") {
+          state = "Deposit";
+        } else if (entry.type === "capital_lock") {
+          state = "Capital Locked";
+        } else if (entry.type === "capital_unlock") {
+          state = "Capital Unlocked";
+        } else if (entry.type === "profit_credit") {
+          state = "Profit Credit";
+        } else if (entry.type === "profit_withdrawal") {
+          state = "Profit Withdrawal";
+        }
+        
         utidMap.set(entry.utid, {
           utid: entry.utid,
           type: entry.type,
           timestamp: entry.timestamp,
           status: "active",
+          state: state,
           entities: [],
         });
       }
@@ -207,11 +222,23 @@ export const getTraderActiveUTIDs = query({
     for (const unit of lockedUnits) {
       if (unit.lockedBy === args.traderId && unit.lockUtid) {
         if (!utidMap.has(unit.lockUtid)) {
+          // Determine state: if deliveryStatus is "pending", it's "Locked-In (In Transit)"
+          // Once delivered, it becomes inventory (handled separately)
+          const deliveryStatus = unit.deliveryStatus || "pending";
+          const state = deliveryStatus === "pending" 
+            ? "Locked-In (In Transit)" 
+            : deliveryStatus === "delivered"
+            ? "Delivered (Awaiting Inventory)"
+            : deliveryStatus === "late"
+            ? "Locked-In (Late Delivery)"
+            : "Locked-In (Cancelled)";
+          
           utidMap.set(unit.lockUtid, {
             utid: unit.lockUtid,
             type: "unit_lock",
             timestamp: unit.lockedAt || 0,
-            status: unit.deliveryStatus || "pending",
+            status: deliveryStatus,
+            state: state,
             entities: [],
           });
         }
@@ -244,11 +271,21 @@ export const getTraderActiveUTIDs = query({
 
     for (const inv of inventory) {
       if (!utidMap.has(inv.utid)) {
+        // Determine state based on inventory status
+        const state = inv.status === "in_storage"
+          ? "Inventory"
+          : inv.status === "sold"
+          ? "Inventory (Sold)"
+          : inv.status === "pending_delivery"
+          ? "Inventory (Pending Delivery)"
+          : "Inventory (Expired)";
+        
         utidMap.set(inv.utid, {
           utid: inv.utid,
           type: "inventory",
           timestamp: inv.acquiredAt,
           status: inv.status,
+          state: state,
           entities: [],
         });
       }

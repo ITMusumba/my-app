@@ -8,7 +8,8 @@
  */
 
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Get farmer's listings
@@ -472,6 +473,302 @@ export const getDeliveryStatus = query({
       totals,
       byStatus: statusGroups,
       currentTime: now,
+    };
+  },
+});
+
+/**
+ * Get expired UTIDs (past delivery deadline, not delivered, not archived)
+ * 
+ * Returns all UTIDs where the delivery deadline has passed,
+ * delivery status is still pending or late, and not yet archived.
+ */
+export const getExpiredUTIDs = query({
+  args: {
+    farmerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a farmer
+    const user = await ctx.db.get(args.farmerId);
+    if (!user || user.role !== "farmer") {
+      throw new Error("User is not a farmer");
+    }
+
+    const now = Date.now();
+
+    // Get all listings for this farmer
+    const listings = await ctx.db
+      .query("listings")
+      .withIndex("by_farmer", (q) => q.eq("farmerId", args.farmerId))
+      .collect();
+
+    const listingIds = listings.map((l) => l._id);
+
+    // Get all locked units from these listings
+    const allLockedUnits = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_status", (q) => q.eq("status", "locked"))
+      .collect();
+
+    // Filter to only units from this farmer's listings that are expired
+    const expiredUnits = allLockedUnits.filter((unit) => {
+      if (!listingIds.includes(unit.listingId)) return false;
+      if (!unit.deliveryDeadline) return false;
+      if (now <= unit.deliveryDeadline) return false; // Not expired yet
+      if (unit.deliveryStatus === "delivered") return false; // Already delivered
+      if (unit.archived) return false; // Already archived
+      return true;
+    });
+
+    // Enrich with listing and trader information
+    const expiredUTIDs = await Promise.all(
+      expiredUnits.map(async (unit) => {
+        const listing = await ctx.db.get(unit.listingId);
+        const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
+
+        // Calculate how long expired
+        const hoursExpired = (now - unit.deliveryDeadline!) / (1000 * 60 * 60);
+        const daysExpired = hoursExpired / 24;
+
+        return {
+          unitId: unit._id,
+          unitNumber: unit.unitNumber,
+          listingId: unit.listingId,
+          listingUtid: listing?.utid,
+          produceType: listing?.produceType,
+          kilos: listing?.unitSize || 10,
+          desiredPricePerKilo: listing?.pricePerKilo || 0,
+          lockUtid: unit.lockUtid,
+          lockedAt: unit.lockedAt,
+          deliveryDeadline: unit.deliveryDeadline,
+          deliveryStatus: unit.deliveryStatus || "pending",
+          hoursExpired: Math.round(hoursExpired * 100) / 100,
+          daysExpired: Math.round(daysExpired * 100) / 100,
+          traderAlias: trader?.alias || null,
+          archived: unit.archived || false,
+        };
+      })
+    );
+
+    // Sort by most expired first
+    expiredUTIDs.sort((a, b) => b.hoursExpired - a.hoursExpired);
+
+    return {
+      totalExpired: expiredUTIDs.length,
+      expiredUTIDs,
+      currentTime: now,
+    };
+  },
+});
+
+/**
+ * Archive expired UTID (farmer only)
+ * 
+ * Marks a UTID as archived so it no longer appears in expired UTIDs list.
+ */
+export const archiveUTID = mutation({
+  args: {
+    farmerId: v.id("users"),
+    unitId: v.id("listingUnits"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a farmer
+    const user = await ctx.db.get(args.farmerId);
+    if (!user || user.role !== "farmer") {
+      throw new Error("User is not a farmer");
+    }
+
+    // Get the unit
+    const unit = await ctx.db.get(args.unitId);
+    if (!unit) {
+      throw new Error("Unit not found");
+    }
+
+    // Verify this unit belongs to a listing owned by this farmer
+    const listing = await ctx.db.get(unit.listingId);
+    if (!listing || listing.farmerId !== args.farmerId) {
+      throw new Error("You can only archive UTIDs from your own listings");
+    }
+
+    // Verify unit has a lockUtid
+    if (!unit.lockUtid) {
+      throw new Error("Unit has no UTID to archive");
+    }
+
+    // Archive the unit
+    await ctx.db.patch(args.unitId, {
+      archived: true,
+      archivedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      unitId: args.unitId,
+      lockUtid: unit.lockUtid,
+      archivedAt: Date.now(),
+    };
+  },
+});
+
+/**
+ * Get successful transactions ledger
+ * 
+ * Returns all successfully delivered and sold transactions with:
+ * - UTID details
+ * - Price action (negotiation history)
+ * - Desired price (original listing price)
+ * - Final price sold (price at which sold to buyer, if available)
+ * - Total earned (kilos × final price)
+ * - Kilos
+ */
+export const getSuccessfulTransactionsLedger = query({
+  args: {
+    farmerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a farmer
+    const user = await ctx.db.get(args.farmerId);
+    if (!user || user.role !== "farmer") {
+      throw new Error("User is not a farmer");
+    }
+
+    // Get all listings for this farmer
+    const listings = await ctx.db
+      .query("listings")
+      .withIndex("by_farmer", (q) => q.eq("farmerId", args.farmerId))
+      .collect();
+
+    const listingIds = listings.map((l) => l._id);
+    const listingsMap = new Map(listings.map((l) => [l._id, l]));
+
+    // Get all delivered units from these listings
+    const allDeliveredUnits = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_status", (q) => q.eq("status", "delivered"))
+      .collect();
+
+    // Filter to only units from this farmer's listings
+    const farmerDeliveredUnits = allDeliveredUnits.filter((unit) =>
+      listingIds.includes(unit.listingId) && unit.deliveryStatus === "delivered"
+    );
+
+    // Build successful transactions
+    const transactions = await Promise.all(
+      farmerDeliveredUnits.map(async (unit) => {
+        const listing = listingsMap.get(unit.listingId);
+        if (!listing) return null;
+
+        // Get negotiation history if available
+        let negotiationHistory = null;
+        if (unit.activeNegotiationId) {
+          const negotiation = await ctx.db.get(unit.activeNegotiationId);
+          if (negotiation) {
+            negotiationHistory = {
+              farmerPricePerKilo: negotiation.farmerPricePerKilo,
+              traderOfferPricePerKilo: negotiation.traderOfferPricePerKilo,
+              currentPricePerKilo: negotiation.currentPricePerKilo,
+              negotiationUtid: negotiation.negotiationUtid,
+              acceptedUtid: negotiation.acceptedUtid,
+            };
+          }
+        }
+
+        // Get trader information
+        const trader = unit.lockedBy ? await ctx.db.get(unit.lockedBy) : null;
+
+        // Check if this unit is part of trader inventory that was sold
+        let finalSalePrice = null;
+        let soldToBuyer = false;
+        let buyerPurchaseUtid = null;
+        
+        // Find trader inventory that contains this unit
+        const allInventory = await ctx.db
+          .query("traderInventory")
+          .withIndex("by_trader", (q) => q.eq("traderId", unit.lockedBy!))
+          .collect();
+
+        for (const inventory of allInventory) {
+          if (inventory.listingUnitIds.includes(unit._id)) {
+            // Check if this inventory was sold to a buyer
+            if (inventory.status === "sold") {
+              soldToBuyer = true;
+              // Find buyer purchase for this inventory
+              const buyerPurchases = await ctx.db
+                .query("buyerPurchases")
+                .withIndex("by_status", (q) => q.eq("status", "picked_up"))
+                .collect();
+              
+              const purchase = buyerPurchases.find(
+                (p) => p.inventoryId === inventory._id
+              );
+
+              if (purchase) {
+                buyerPurchaseUtid = purchase.utid;
+                // Calculate final price per kilo from inventory
+                // Note: We use the listing price as the final price since buyer prices aren't stored
+                // In a real system, this would be stored when inventory is sold
+                finalSalePrice = listing.pricePerKilo;
+              }
+            }
+            break;
+          }
+        }
+
+        // Use negotiated price if available, otherwise use listing price
+        const finalPricePerKilo = negotiationHistory?.currentPricePerKilo || listing.pricePerKilo;
+        const kilos = listing.unitSize || 10;
+        const totalEarned = finalPricePerKilo * kilos;
+
+        return {
+          unitId: unit._id,
+          unitNumber: unit.unitNumber,
+          listingId: unit.listingId,
+          listingUtid: listing.utid,
+          lockUtid: unit.lockUtid,
+          produceType: listing.produceType,
+          kilos,
+          // Price information
+          desiredPricePerKilo: listing.pricePerKilo,
+          negotiatedPricePerKilo: negotiationHistory?.currentPricePerKilo || listing.pricePerKilo,
+          finalPricePerKilo: finalSalePrice || finalPricePerKilo,
+          totalEarned,
+          // Price action (negotiation history)
+          priceAction: negotiationHistory ? {
+            originalPrice: negotiationHistory.farmerPricePerKilo,
+            traderOffer: negotiationHistory.traderOfferPricePerKilo,
+            finalNegotiated: negotiationHistory.currentPricePerKilo,
+            negotiationUtid: negotiationHistory.negotiationUtid,
+            acceptedUtid: negotiationHistory.acceptedUtid,
+          } : null,
+          // Sale information
+          soldToBuyer,
+          buyerPurchaseUtid,
+          // Timestamps
+          lockedAt: unit.lockedAt,
+          deliveryDeadline: unit.deliveryDeadline,
+          // Trader information (anonymity preserved)
+          traderAlias: trader?.alias || null,
+        };
+      })
+    );
+
+    // Filter out nulls and sort by most recent first
+    const validTransactions = transactions.filter((t) => t !== null) as NonNullable<typeof transactions[0]>[];
+    validTransactions.sort((a, b) => {
+      const timeA = a.lockedAt || 0;
+      const timeB = b.lockedAt || 0;
+      return timeB - timeA;
+    });
+
+    // Calculate totals
+    const totalKilos = validTransactions.reduce((sum, t) => sum + t.kilos, 0);
+    const totalEarned = validTransactions.reduce((sum, t) => sum + t.totalEarned, 0);
+
+    return {
+      totalTransactions: validTransactions.length,
+      totalKilos,
+      totalEarned,
+      transactions: validTransactions,
     };
   },
 });

@@ -284,9 +284,27 @@ export function TraderListings({ userId }: TraderListingsProps) {
                   background: "#fff",
                   borderRadius: "12px",
                   boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                  border: "1px solid #e0e0e0",
+                  border: hasActiveNegotiation ? "2px solid #ff9800" : "1px solid #e0e0e0",
+                  position: "relative",
                 }}
               >
+                {hasActiveNegotiation && (
+                  <div style={{
+                    position: "absolute",
+                    top: "0.75rem",
+                    right: "0.75rem",
+                    padding: "0.25rem 0.75rem",
+                    background: "#ff9800",
+                    color: "#fff",
+                    borderRadius: "4px",
+                    fontSize: "clamp(0.7rem, 2vw, 0.75rem)",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px"
+                  }}>
+                    PENDING
+                  </div>
+                )}
                 <div style={{ marginBottom: "1rem" }}>
                   <div style={{ flex: 1 }}>
                     <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "clamp(1rem, 3.5vw, 1.2rem)", color: "#1a1a1a" }}>

@@ -116,6 +116,9 @@ export default defineSchema({
     )), // Tracks delivery status for SLA monitoring
     // Negotiation tracking
     activeNegotiationId: v.optional(v.id("negotiations")), // Active negotiation for this unit
+    // Archive tracking
+    archived: v.optional(v.boolean()), // Whether this UTID has been archived by farmer
+    archivedAt: v.optional(v.number()), // When this UTID was archived
   })
     .index("by_listing", ["listingId"])
     .index("by_status", ["status"])

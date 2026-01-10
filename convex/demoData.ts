@@ -33,11 +33,27 @@ export const seedDemoData = mutation({
     };
 
     try {
-      // Get all users
+      // Get all users - ONLY test accounts (pilot.farm2market domain)
       const allUsers = await ctx.db.query("users").collect();
-      const farmers = allUsers.filter((u) => u.role === "farmer");
-      const traders = allUsers.filter((u) => u.role === "trader");
-      const buyers = allUsers.filter((u) => u.role === "buyer");
+      const testUsers = allUsers.filter((u) => u.email?.endsWith("@pilot.farm2market"));
+      
+      if (testUsers.length === 0) {
+        return {
+          success: false,
+          error: "No test accounts found. Seed demo data only works with test accounts (pilot.farm2market domain).",
+          summary: {
+            listingsCreated: 0,
+            traderDeposits: 0,
+            buyerDeposits: 0,
+            errors: 1,
+          },
+          details: results,
+        };
+      }
+
+      const farmers = testUsers.filter((u) => u.role === "farmer");
+      const traders = testUsers.filter((u) => u.role === "trader");
+      const buyers = testUsers.filter((u) => u.role === "buyer");
 
       // ============================================================
       // 1. CREATE FARMER LISTINGS

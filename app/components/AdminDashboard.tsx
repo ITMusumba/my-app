@@ -24,7 +24,10 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   const updateBuyerServiceFeePercentage = useMutation(api.admin.updateBuyerServiceFeePercentage);
   const getBuyerServiceFeePercentage = useQuery(api.admin.getBuyerServiceFeePercentageQuery, { adminId: userId });
   const updateTraderSpendCap = useMutation(api.admin.updateTraderSpendCap);
+  const updateAllTradersSpendCap = useMutation(api.admin.updateAllTradersSpendCap);
   const sendNotificationToSelectedUsers = useMutation(api.notifications.sendNotificationToSelectedUsers);
+  const sendRoleBasedNotification = useMutation(api.notifications.sendRoleBasedNotification);
+  const confirmDeliveryToStorageByUTID = useMutation(api.admin.confirmDeliveryToStorageByUTID);
   const allUsers = useQuery(api.introspection.getAllUsers, { adminId: userId });
   const qualityOptions = useQuery(api.admin.getQualityOptions, { adminId: userId, activeOnly: false });
   const addQualityOption = useMutation(api.admin.addQualityOption);
@@ -34,6 +37,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   const addProduceOption = useMutation(api.admin.addProduceOption);
   const updateProduceOption = useMutation(api.admin.updateProduceOption);
   const deleteProduceOption = useMutation(api.admin.deleteProduceOption);
+  const todayMetrics = useQuery(api.admin.getTodaySystemMetrics, { adminId: userId });
   
   const [reason, setReason] = useState("");
   const [windowActionLoading, setWindowActionLoading] = useState(false);
@@ -129,6 +133,133 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
               </div>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>Buyers Near Pickup SLA</div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* System Metrics - Today's Listings */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          System Metrics - Today's Activity
+        </h3>
+        {todayMetrics === undefined ? (
+          <p style={{ color: "#999" }}>Loading metrics...</p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}>
+            {/* Open Listings */}
+            <div style={{ padding: "1.5rem", background: "#e3f2fd", borderRadius: "8px", border: "1px solid #2196f3" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: "600", color: "#1976d2", marginBottom: "0.5rem" }}>
+                Open Listings
+              </div>
+              <div style={{ fontSize: "2rem", fontWeight: "700", color: "#1565c0", marginBottom: "0.25rem" }}>
+                {todayMetrics.open.count}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                {todayMetrics.open.uniqueUTIDs} unique UTID(s)
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
+                <strong>{todayMetrics.open.totalKilos.toFixed(2)} kg</strong>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242" }}>
+                <strong>UGX {todayMetrics.open.totalMoney.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {/* Locked Listings */}
+            <div style={{ padding: "1.5rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: "600", color: "#f57c00", marginBottom: "0.5rem" }}>
+                Locked Listings
+              </div>
+              <div style={{ fontSize: "2rem", fontWeight: "700", color: "#e65100", marginBottom: "0.25rem" }}>
+                {todayMetrics.locked.count}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                {todayMetrics.locked.uniqueUTIDs} unique UTID(s)
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
+                <strong>{todayMetrics.locked.totalKilos.toFixed(2)} kg</strong>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242" }}>
+                <strong>UGX {todayMetrics.locked.totalMoney.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {/* Delivered Listings */}
+            <div style={{ padding: "1.5rem", background: "#e8f5e9", borderRadius: "8px", border: "1px solid #4caf50" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: "600", color: "#2e7d32", marginBottom: "0.5rem" }}>
+                Delivered Listings
+              </div>
+              <div style={{ fontSize: "2rem", fontWeight: "700", color: "#1b5e20", marginBottom: "0.25rem" }}>
+                {todayMetrics.delivered.count}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                {todayMetrics.delivered.uniqueUTIDs} unique UTID(s)
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
+                <strong>{todayMetrics.delivered.totalKilos.toFixed(2)} kg</strong>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242" }}>
+                <strong>UGX {todayMetrics.delivered.totalMoney.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {/* Collectable Listings */}
+            <div style={{ padding: "1.5rem", background: "#f3e5f5", borderRadius: "8px", border: "1px solid #9c27b0" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: "600", color: "#7b1fa2", marginBottom: "0.5rem" }}>
+                Collectable Listings
+              </div>
+              <div style={{ fontSize: "2rem", fontWeight: "700", color: "#4a148c", marginBottom: "0.25rem" }}>
+                {todayMetrics.collectable.count}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                {todayMetrics.collectable.uniqueUTIDs} unique UTID(s)
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
+                <strong>{todayMetrics.collectable.totalKilos.toFixed(2)} kg</strong>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242" }}>
+                <strong>UGX {todayMetrics.collectable.totalMoney.toLocaleString()}</strong>
+              </div>
+            </div>
+
+            {/* Picked Up Listings */}
+            <div style={{ padding: "1.5rem", background: "#e0f2f1", borderRadius: "8px", border: "1px solid #009688" }}>
+              <div style={{ fontSize: "1.1rem", fontWeight: "600", color: "#00695c", marginBottom: "0.5rem" }}>
+                Picked Up Listings
+              </div>
+              <div style={{ fontSize: "2rem", fontWeight: "700", color: "#004d40", marginBottom: "0.25rem" }}>
+                {todayMetrics.pickedUp.count}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
+                {todayMetrics.pickedUp.uniqueUTIDs} unique UTID(s)
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
+                <strong>{todayMetrics.pickedUp.totalKilos.toFixed(2)} kg</strong>
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#424242" }}>
+                <strong>UGX {todayMetrics.pickedUp.totalMoney.toLocaleString()}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+        {todayMetrics && (
+          <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f5f5f5", borderRadius: "6px", fontSize: "0.85rem", color: "#666" }}>
+            📅 Date: {todayMetrics.date.today} ({todayMetrics.date.timezone}) | Current Time: {new Date(todayMetrics.date.currentTime).toLocaleString("en-US", { timeZone: "Africa/Kampala", dateStyle: "short", timeStyle: "medium" })}
           </div>
         )}
       </div>
@@ -451,6 +582,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
             })}
           </div>
         )}
+        <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "2px solid #e0e0e0" }}>
+          <h4 style={{ marginBottom: "1rem", fontSize: "1.1rem", color: "#1a1a1a" }}>
+            Confirm Delivery to Storage by UTID
+          </h4>
+          <DeliveryConfirmationForm
+            allUTIDs={allUTIDs}
+            confirmDelivery={confirmDeliveryToStorageByUTID}
+            adminId={userId}
+          />
+        </div>
       </div>
 
       {/* System Controls - Maintenance Mode */}
@@ -735,11 +876,14 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         {allUsers === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
         ) : (
-          <TraderSpendCapForm
-            traders={allUsers.filter((u: any) => u.role === "trader")}
-            updateTraderSpendCap={updateTraderSpendCap}
-            adminId={userId}
-          />
+          <>
+            <TraderSpendCapForm
+              traders={allUsers.filter((u: any) => u.role === "trader")}
+              updateTraderSpendCap={updateTraderSpendCap}
+              updateAllTradersSpendCap={updateAllTradersSpendCap}
+              adminId={userId}
+            />
+          </>
         )}
       </div>
 
@@ -841,6 +985,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
           <NotificationForm
             allUsers={allUsers}
             sendNotification={sendNotificationToSelectedUsers}
+            sendRoleBasedNotification={sendRoleBasedNotification}
             adminId={userId}
           />
         )}
@@ -1161,12 +1306,16 @@ function KiloShavingRateForm({ currentRate, updateKiloShavingRate, adminId }: { 
 }
 
 // Trader Spend Cap Form Component
-function TraderSpendCapForm({ traders, updateTraderSpendCap, adminId }: { traders: any[]; updateTraderSpendCap: any; adminId: Id<"users"> }) {
+function TraderSpendCapForm({ traders, updateTraderSpendCap, updateAllTradersSpendCap, adminId }: { traders: any[]; updateTraderSpendCap: any; updateAllTradersSpendCap: any; adminId: Id<"users"> }) {
   const [selectedTrader, setSelectedTrader] = useState<string>("");
   const [spendCap, setSpendCap] = useState<string>("");
+  const [allTradersSpendCap, setAllTradersSpendCap] = useState<string>("");
   const [reason, setReason] = useState("");
+  const [allTradersReason, setAllTradersReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [allTradersLoading, setAllTradersLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [allTradersMessage, setAllTradersMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const handleSubmit = async () => {
     if (!selectedTrader) {
@@ -1305,17 +1454,126 @@ function TraderSpendCapForm({ traders, updateTraderSpendCap, adminId }: { trader
       >
         {loading ? "Updating..." : "Update Trader Spend Cap"}
       </button>
+
+      <div style={{ marginTop: "2rem", paddingTop: "2rem", borderTop: "2px solid #e0e0e0" }}>
+        <h4 style={{ marginBottom: "1rem", fontSize: "1.1rem", color: "#1a1a1a" }}>
+          Set Spend Cap for All Traders
+        </h4>
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+            New Spend Cap for All Traders (UGX) - Leave empty to reset all to default:
+          </label>
+          <input
+            type="number"
+            value={allTradersSpendCap}
+            onChange={(e) => setAllTradersSpendCap(e.target.value)}
+            min="0"
+            step="1000"
+            placeholder="e.g., 2000000 (or leave empty for default)"
+            disabled={allTradersLoading}
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              border: "1px solid #ddd",
+              borderRadius: "6px",
+              fontSize: "0.9rem",
+              fontFamily: "inherit"
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+            Reason (required):
+          </label>
+          <textarea
+            value={allTradersReason}
+            onChange={(e) => setAllTradersReason(e.target.value)}
+            placeholder="Enter reason for changing spend cap for all traders..."
+            style={{
+              width: "100%",
+              minHeight: "80px",
+              padding: "0.75rem",
+              border: "1px solid #ddd",
+              borderRadius: "6px",
+              fontSize: "0.9rem",
+              fontFamily: "inherit",
+              resize: "vertical"
+            }}
+          />
+        </div>
+        {allTradersMessage && (
+          <div style={{
+            marginBottom: "1rem",
+            padding: "0.75rem",
+            background: allTradersMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+            border: `1px solid ${allTradersMessage.type === "success" ? "#4caf50" : "#ef5350"}`,
+            borderRadius: "6px",
+            color: allTradersMessage.type === "success" ? "#2e7d32" : "#c62828",
+            fontSize: "0.9rem"
+          }}>
+            {allTradersMessage.text}
+          </div>
+        )}
+        <button
+          onClick={async () => {
+            if (!allTradersReason.trim()) {
+              setAllTradersMessage({ type: "error", text: "Please provide a reason" });
+              return;
+            }
+
+            const spendCapValue = allTradersSpendCap.trim() === "" ? undefined : parseFloat(allTradersSpendCap);
+            if (spendCapValue !== undefined && (isNaN(spendCapValue) || spendCapValue < 0)) {
+              setAllTradersMessage({ type: "error", text: "Please enter a valid spend cap (must be >= 0) or leave empty to reset to default" });
+              return;
+            }
+
+            setAllTradersLoading(true);
+            setAllTradersMessage(null);
+            try {
+              const result = await updateAllTradersSpendCap({
+                adminId,
+                spendCap: spendCapValue,
+                reason: allTradersReason.trim(),
+              });
+              setAllTradersMessage({
+                type: "success",
+                text: `Spend cap ${spendCapValue === undefined ? "reset to default" : `set to ${spendCapValue.toLocaleString()} UGX`} for ${result.updated.length} trader(s)! UTID: ${result.utid}.`
+              });
+              setAllTradersSpendCap("");
+              setAllTradersReason("");
+            } catch (error: any) {
+              setAllTradersMessage({ type: "error", text: `Failed to update spend cap: ${error.message}` });
+            } finally {
+              setAllTradersLoading(false);
+            }
+          }}
+          disabled={allTradersLoading}
+          style={{
+            padding: "0.75rem 1.5rem",
+            background: allTradersLoading ? "#ccc" : "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontWeight: "600",
+            cursor: allTradersLoading ? "not-allowed" : "pointer"
+          }}
+        >
+          {allTradersLoading ? "Updating All Traders..." : "Update All Traders Spend Cap"}
+        </button>
+      </div>
     </div>
   );
 }
 
 // Notification Form Component
-function NotificationForm({ allUsers, sendNotification, adminId }: { allUsers: any[]; sendNotification: any; adminId: Id<"users"> }) {
+function NotificationForm({ allUsers, sendNotification, sendRoleBasedNotification, adminId }: { allUsers: any[]; sendNotification: any; sendRoleBasedNotification: any; adminId: Id<"users"> }) {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [roleLoading, setRoleLoading] = useState<string | null>(null);
   const [resultMessage, setResultMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const toggleUser = (userId: string) => {
@@ -1518,6 +1776,61 @@ function NotificationForm({ allUsers, sendNotification, adminId }: { allUsers: a
             resize: "vertical"
           }}
         />
+      </div>
+      <div style={{ marginTop: "1.5rem", marginBottom: "1rem", paddingTop: "1.5rem", borderTop: "2px solid #e0e0e0" }}>
+        <h4 style={{ marginBottom: "0.75rem", fontSize: "1.1rem", color: "#1a1a1a" }}>
+          Or Send to All Users by Role:
+        </h4>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          {Object.entries(usersByRole).map(([role, users]) => (
+            users.length > 0 && (
+              <button
+                key={role}
+                onClick={async () => {
+                  if (!title.trim() || !message.trim() || !reason.trim()) {
+                    setResultMessage({ type: "error", text: "Please fill in title, message, and reason first" });
+                    return;
+                  }
+                  setRoleLoading(role);
+                  setResultMessage(null);
+                  try {
+                    const result = await sendRoleBasedNotification({
+                      adminId,
+                      role: role as "farmer" | "trader" | "buyer" | "admin",
+                      title: title.trim(),
+                      message: message.trim(),
+                      reason: reason.trim(),
+                    });
+                    setResultMessage({
+                      type: "success",
+                      text: `Notification sent successfully to all ${role}s (${result.recipientsCount} users)! UTID: ${result.notificationUtid}.`
+                    });
+                    setTitle("");
+                    setMessage("");
+                    setReason("");
+                  } catch (error: any) {
+                    setResultMessage({ type: "error", text: `Failed to send notification: ${error.message}` });
+                  } finally {
+                    setRoleLoading(null);
+                  }
+                }}
+                disabled={roleLoading !== null || !title.trim() || !message.trim() || !reason.trim()}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: roleLoading === role ? "#ccc" : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  cursor: roleLoading !== null || !title.trim() || !message.trim() || !reason.trim() ? "not-allowed" : "pointer"
+                }}
+              >
+                {roleLoading === role ? "Sending..." : `Send to All ${role.charAt(0).toUpperCase() + role.slice(1)}s (${users.length})`}
+              </button>
+            )
+          ))}
+        </div>
       </div>
       {resultMessage && (
         <div style={{
@@ -2263,11 +2576,9 @@ function ProduceOptionsManager({
               <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
                 Icon (Emoji):
               </label>
-              <input
-                type="text"
+              <select
                 value={newIcon}
                 onChange={(e) => setNewIcon(e.target.value)}
-                placeholder="e.g., 🍌, 🌽, 🫘"
                 style={{
                   width: "100%",
                   padding: "0.5rem",
@@ -2275,9 +2586,36 @@ function ProduceOptionsManager({
                   borderRadius: "4px",
                   fontSize: "0.9rem"
                 }}
-              />
+              >
+                <option value="">-- Select an emoji --</option>
+                <option value="🍌">🍌 Banana</option>
+                <option value="🌽">🌽 Maize/Corn</option>
+                <option value="🫘">🫘 Beans</option>
+                <option value="🍠">🍠 Cassava</option>
+                <option value="🍅">🍅 Tomato</option>
+                <option value="🌾">🌾 Rice</option>
+                <option value="🥔">🥔 Potato</option>
+                <option value="🥜">🥜 Groundnut/Peanut</option>
+                <option value="🌻">🌻 Sunflower</option>
+                <option value="🌶️">🌶️ Pepper</option>
+                <option value="🥬">🥬 Cabbage</option>
+                <option value="🥕">🥕 Carrot</option>
+                <option value="🧅">🧅 Onion</option>
+                <option value="🥒">🥒 Cucumber</option>
+                <option value="🌿">🌿 Herbs</option>
+                <option value="🥑">🥑 Avocado</option>
+                <option value="🍊">🍊 Orange</option>
+                <option value="🍋">🍋 Lemon</option>
+                <option value="🥭">🥭 Mango</option>
+                <option value="🍉">🍉 Watermelon</option>
+                <option value="🥥">🥥 Coconut</option>
+                <option value="🌰">🌰 Cashew</option>
+                <option value="☕">☕ Coffee</option>
+                <option value="🍵">🍵 Tea</option>
+                <option value="🌱">🌱 Seedlings</option>
+              </select>
               <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem", color: "#666" }}>
-                Enter an emoji icon (e.g., 🍌 for Banana, 🌽 for Maize)
+                Select an emoji from the agro-commodities icon library
               </p>
             </div>
             <div>
@@ -2410,8 +2748,7 @@ function ProduceOptionsManager({
                       <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
                         Icon (Emoji):
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editIcon}
                         onChange={(e) => setEditIcon(e.target.value)}
                         style={{
@@ -2421,7 +2758,34 @@ function ProduceOptionsManager({
                           borderRadius: "4px",
                           fontSize: "0.9rem"
                         }}
-                      />
+                      >
+                        <option value="">-- Select an emoji --</option>
+                        <option value="🍌">🍌 Banana</option>
+                        <option value="🌽">🌽 Maize/Corn</option>
+                        <option value="🫘">🫘 Beans</option>
+                        <option value="🍠">🍠 Cassava</option>
+                        <option value="🍅">🍅 Tomato</option>
+                        <option value="🌾">🌾 Rice</option>
+                        <option value="🥔">🥔 Potato</option>
+                        <option value="🥜">🥜 Groundnut/Peanut</option>
+                        <option value="🌻">🌻 Sunflower</option>
+                        <option value="🌶️">🌶️ Pepper</option>
+                        <option value="🥬">🥬 Cabbage</option>
+                        <option value="🥕">🥕 Carrot</option>
+                        <option value="🧅">🧅 Onion</option>
+                        <option value="🥒">🥒 Cucumber</option>
+                        <option value="🌿">🌿 Herbs</option>
+                        <option value="🥑">🥑 Avocado</option>
+                        <option value="🍊">🍊 Orange</option>
+                        <option value="🍋">🍋 Lemon</option>
+                        <option value="🥭">🥭 Mango</option>
+                        <option value="🍉">🍉 Watermelon</option>
+                        <option value="🥥">🥥 Coconut</option>
+                        <option value="🌰">🌰 Cashew</option>
+                        <option value="☕">☕ Coffee</option>
+                        <option value="🍵">🍵 Tea</option>
+                        <option value="🌱">🌱 Seedlings</option>
+                      </select>
                     </div>
                     <div>
                       <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>

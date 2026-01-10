@@ -218,6 +218,122 @@ export const verifyDelivery = mutation({
 });
 
 /**
+ * Confirm delivery to storage by UTID (admin only)
+ * Admin selects a UTID and confirms delivery, creating trader inventory
+ */
+export const confirmDeliveryToStorageByUTID = mutation({
+  args: {
+    adminId: v.id("users"),
+    lockUtid: v.string(), // The UTID from the lock transaction
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    // Find all units locked with this UTID
+    const allUnits = await ctx.db.query("listingUnits").collect();
+    const lockedUnits = allUnits.filter(
+      (u) => u.status === "locked" && u.lockUtid === args.lockUtid
+    );
+
+    if (lockedUnits.length === 0) {
+      throw new Error(`No locked units found with UTID: ${args.lockUtid}`);
+    }
+
+    // Group units by trader and produce type
+    const unitsByTraderAndProduce = new Map<string, { traderId: Id<"users">; produceType: string; units: typeof lockedUnits; listingId: Id<"listings"> }>();
+
+    for (const unit of lockedUnits) {
+      if (!unit.lockedBy) continue;
+
+      const listing = await ctx.db.get(unit.listingId);
+      if (!listing) continue;
+
+      const key = `${unit.lockedBy}_${listing.produceType}`;
+      if (!unitsByTraderAndProduce.has(key)) {
+        unitsByTraderAndProduce.set(key, {
+          traderId: unit.lockedBy,
+          produceType: listing.produceType,
+          units: [],
+          listingId: listing._id,
+        });
+      }
+      unitsByTraderAndProduce.get(key)!.units.push(unit);
+    }
+
+    const results = {
+      inventoryCreated: [] as any[],
+      unitsUpdated: 0,
+      errors: [] as string[],
+    };
+
+    // Create inventory for each trader/produce combination
+    for (const [key, group] of unitsByTraderAndProduce.entries()) {
+      try {
+        // Calculate total kilos
+        let totalKilos = 0;
+        for (const unit of group.units) {
+          const listing = await ctx.db.get(unit.listingId);
+          if (listing) {
+            totalKilos += listing.unitSize || 10;
+          }
+        }
+
+        // Generate inventory UTID
+        const inventoryUtid = generateUTID("admin");
+
+        // Create trader inventory
+        const inventoryId = await ctx.db.insert("traderInventory", {
+          traderId: group.traderId,
+          listingUnitIds: group.units.map((u) => u._id),
+          totalKilos,
+          blockSize: 100, // Target block size
+          produceType: group.produceType,
+          acquiredAt: Date.now(),
+          storageStartTime: Date.now(),
+          status: "in_storage",
+          utid: inventoryUtid,
+        });
+
+        // Update units to delivered status
+        for (const unit of group.units) {
+          await ctx.db.patch(unit._id, {
+            deliveryStatus: "delivered",
+          });
+          results.unitsUpdated++;
+        }
+
+        results.inventoryCreated.push({
+          inventoryId,
+          inventoryUtid,
+          traderId: group.traderId,
+          produceType: group.produceType,
+          totalKilos,
+          unitsCount: group.units.length,
+        });
+      } catch (error: any) {
+        results.errors.push(`Failed to create inventory for ${key}: ${error.message}`);
+      }
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "confirm_delivery_to_storage_by_utid",
+      args.reason,
+      args.lockUtid,
+      {
+        lockUtid: args.lockUtid,
+        inventoryCreated: results.inventoryCreated.length,
+        unitsUpdated: results.unitsUpdated,
+      }
+    );
+
+    return { utid, ...results };
+  },
+});
+
+/**
  * Reverse delivery failure (admin only)
  * Atomic operation to reverse failed deliveries
  */
@@ -595,6 +711,279 @@ export const updateKiloShavingRate = mutation({
 /**
  * Get current kilo-shaving rate (admin only)
  */
+/**
+ * Get today's system metrics (admin only)
+ * Returns metrics for Open, Locked, Delivered, Collectable, and Picked Up listings
+ */
+export const getTodaySystemMetrics = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    // Get today's date range (start of day to end of day in Uganda time - UTC+3)
+    const now = Date.now();
+    // Uganda is UTC+3, so we need to adjust
+    const ugandaOffset = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+    const nowInUganda = now + ugandaOffset;
+    const today = new Date(nowInUganda);
+    today.setUTCHours(0, 0, 0, 0);
+    const startOfDayUganda = today.getTime();
+    const endOfDayUganda = startOfDayUganda + 24 * 60 * 60 * 1000 - 1;
+    // Convert back to UTC for comparison with database timestamps
+    const startOfDay = startOfDayUganda - ugandaOffset;
+    const endOfDay = endOfDayUganda - ugandaOffset;
+
+    // Helper function to check if timestamp is today
+    const isToday = (timestamp: number) => timestamp >= startOfDay && timestamp <= endOfDay;
+
+    // 1. OPEN LISTINGS - Units with status "available" created today
+    const allAvailableUnits = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_status", (q: any) => q.eq("status", "available"))
+      .collect();
+
+    const openListings = [];
+    let openKilos = 0;
+    let openMoney = 0;
+    const openUTIDs = new Set<string>();
+
+    for (const unit of allAvailableUnits) {
+      const listing = await ctx.db.get(unit.listingId);
+      if (listing && isToday(listing.createdAt)) {
+        const unitSize = listing.unitSize || 10;
+        const unitValue = listing.pricePerKilo * unitSize;
+        openListings.push({
+          unitId: unit._id,
+          listingId: listing._id,
+          utid: listing.utid,
+          kilos: unitSize,
+          money: unitValue,
+        });
+        openKilos += unitSize;
+        openMoney += unitValue;
+        openUTIDs.add(listing.utid);
+      }
+    }
+
+    // 2. LOCKED LISTINGS - Units with status "locked" locked today
+    const allLockedUnits = await ctx.db
+      .query("listingUnits")
+      .withIndex("by_status", (q: any) => q.eq("status", "locked"))
+      .collect();
+
+    const lockedListings = [];
+    let lockedKilos = 0;
+    let lockedMoney = 0;
+    const lockedUTIDs = new Set<string>();
+
+    for (const unit of allLockedUnits) {
+      if (unit.lockedAt && isToday(unit.lockedAt)) {
+        const listing = await ctx.db.get(unit.listingId);
+        if (listing) {
+          const unitSize = listing.unitSize || 10;
+          const unitValue = listing.pricePerKilo * unitSize;
+          lockedListings.push({
+            unitId: unit._id,
+            listingId: listing._id,
+            utid: unit.lockUtid || listing.utid,
+            kilos: unitSize,
+            money: unitValue,
+          });
+          lockedKilos += unitSize;
+          lockedMoney += unitValue;
+          if (unit.lockUtid) {
+            lockedUTIDs.add(unit.lockUtid);
+          }
+          lockedUTIDs.add(listing.utid);
+        }
+      }
+    }
+
+    // 3. DELIVERED LISTINGS - Units delivered today (checked via inventory creation time)
+    // Get all trader inventory created today
+    const allInventory = await ctx.db.query("traderInventory").collect();
+    const deliveredListings = [];
+    let deliveredKilos = 0;
+    let deliveredMoney = 0;
+    const deliveredUTIDs = new Set<string>();
+    const processedUnitIds = new Set<string>();
+
+    // Check inventory created today (acquiredAt or storageStartTime)
+    for (const inventory of allInventory) {
+      const inventoryCreatedToday = isToday(inventory.acquiredAt) || isToday(inventory.storageStartTime);
+      
+      if (inventoryCreatedToday) {
+        // Process all units in this inventory
+        for (const unitId of inventory.listingUnitIds) {
+          if (!processedUnitIds.has(unitId)) {
+            const unit = await ctx.db.get(unitId);
+            if (unit) {
+              const listing = await ctx.db.get(unit.listingId);
+              if (listing) {
+                const unitSize = listing.unitSize || 10;
+                const unitValue = listing.pricePerKilo * unitSize;
+                deliveredListings.push({
+                  unitId: unit._id,
+                  listingId: listing._id,
+                  utid: unit.lockUtid || inventory.utid || listing.utid,
+                  kilos: unitSize,
+                  money: unitValue,
+                });
+                deliveredKilos += unitSize;
+                deliveredMoney += unitValue;
+                if (unit.lockUtid) {
+                  deliveredUTIDs.add(unit.lockUtid);
+                }
+                deliveredUTIDs.add(inventory.utid);
+                deliveredUTIDs.add(listing.utid);
+                processedUnitIds.add(unitId);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 4. COLLECTABLE LISTINGS - Buyer purchases with status "pending_pickup" purchased today
+    const allPendingPurchases = await ctx.db
+      .query("buyerPurchases")
+      .withIndex("by_status", (q: any) => q.eq("status", "pending_pickup"))
+      .collect();
+
+    const collectableListings = [];
+    let collectableKilos = 0;
+    let collectableMoney = 0;
+    const collectableUTIDs = new Set<string>();
+
+    for (const purchase of allPendingPurchases) {
+      if (isToday(purchase.purchasedAt)) {
+        const inventory = await ctx.db.get(purchase.inventoryId);
+        if (inventory && inventory.listingUnitIds.length > 0) {
+          // Get price from the first unit's listing
+          const firstUnit = await ctx.db.get(inventory.listingUnitIds[0]);
+          if (firstUnit) {
+            const listing = await ctx.db.get(firstUnit.listingId);
+            if (listing) {
+              const purchaseValue = listing.pricePerKilo * purchase.kilos;
+              collectableListings.push({
+                purchaseId: purchase._id,
+                inventoryId: purchase.inventoryId,
+                utid: purchase.utid,
+                kilos: purchase.kilos,
+                money: purchaseValue,
+              });
+              collectableKilos += purchase.kilos;
+              collectableMoney += purchaseValue;
+              collectableUTIDs.add(purchase.utid);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. PICKED UP LISTINGS - Buyer purchases with status "picked_up" picked up today
+    // Note: We need to track when items were picked up. For now, we'll use a timestamp field if it exists.
+    // If not, we'll need to check admin actions or another source.
+    // For now, we'll check purchases that were updated today (approximation)
+    const allPickedUpPurchases = await ctx.db
+      .query("buyerPurchases")
+      .withIndex("by_status", (q: any) => q.eq("status", "picked_up"))
+      .collect();
+
+    const pickedUpListings = [];
+    let pickedUpKilos = 0;
+    let pickedUpMoney = 0;
+    const pickedUpUTIDs = new Set<string>();
+
+    // Since we don't have a pickedUpAt timestamp, we'll use purchasedAt as approximation
+    // In a real system, you'd want to add a pickedUpAt field
+    for (const purchase of allPickedUpPurchases) {
+      // For now, include all picked_up purchases (you may want to add a pickedUpAt field)
+      const inventory = await ctx.db.get(purchase.inventoryId);
+      if (inventory && inventory.listingUnitIds.length > 0) {
+        const firstUnit = await ctx.db.get(inventory.listingUnitIds[0]);
+        if (firstUnit) {
+          const listing = await ctx.db.get(firstUnit.listingId);
+          if (listing) {
+            const purchaseValue = listing.pricePerKilo * purchase.kilos;
+            pickedUpListings.push({
+              purchaseId: purchase._id,
+              inventoryId: purchase.inventoryId,
+              utid: purchase.utid,
+              kilos: purchase.kilos,
+              money: purchaseValue,
+            });
+            pickedUpKilos += purchase.kilos;
+            pickedUpMoney += purchaseValue;
+            pickedUpUTIDs.add(purchase.utid);
+          }
+        }
+      }
+    }
+
+    return {
+      date: {
+        startOfDay,
+        endOfDay,
+        startOfDayUganda,
+        endOfDayUganda,
+        today: (() => {
+          // Format date in Uganda timezone (UTC+3)
+          const ugandaDate = new Date(startOfDayUganda);
+          const year = ugandaDate.getUTCFullYear();
+          const month = String(ugandaDate.getUTCMonth() + 1).padStart(2, "0");
+          const day = String(ugandaDate.getUTCDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        })(),
+        currentTime: (() => {
+          // Get current time in Uganda (UTC+3)
+          const now = Date.now();
+          const ugandaOffset = 3 * 60 * 60 * 1000;
+          return new Date(now + ugandaOffset).toISOString().replace("Z", "+03:00");
+        })(),
+        timezone: "EAT (UTC+3)",
+      },
+      open: {
+        count: openListings.length,
+        uniqueUTIDs: openUTIDs.size,
+        totalKilos: openKilos,
+        totalMoney: openMoney,
+        listings: openListings,
+      },
+      locked: {
+        count: lockedListings.length,
+        uniqueUTIDs: lockedUTIDs.size,
+        totalKilos: lockedKilos,
+        totalMoney: lockedMoney,
+        listings: lockedListings,
+      },
+      delivered: {
+        count: deliveredListings.length,
+        uniqueUTIDs: deliveredUTIDs.size,
+        totalKilos: deliveredKilos,
+        totalMoney: deliveredMoney,
+        listings: deliveredListings,
+      },
+      collectable: {
+        count: collectableListings.length,
+        uniqueUTIDs: collectableUTIDs.size,
+        totalKilos: collectableKilos,
+        totalMoney: collectableMoney,
+        listings: collectableListings,
+      },
+      pickedUp: {
+        count: pickedUpListings.length,
+        uniqueUTIDs: pickedUpUTIDs.size,
+        totalKilos: pickedUpKilos,
+        totalMoney: pickedUpMoney,
+        listings: pickedUpListings,
+      },
+    };
+  },
+});
+
 export const getKiloShavingRate = query({
   args: {
     adminId: v.id("users"),
@@ -678,6 +1067,65 @@ export const getBuyerServiceFeePercentageQuery = query({
  * Update trader spend cap (admin only)
  * Sets a custom spend cap for a specific trader
  */
+/**
+ * Update spend cap for all traders (admin only)
+ * Sets the same spend cap for all traders in the system
+ */
+export const updateAllTradersSpendCap = mutation({
+  args: {
+    adminId: v.id("users"),
+    spendCap: v.optional(v.number()), // New spend cap in UGX. If not provided, resets all to default.
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (args.spendCap !== undefined && args.spendCap < 0) {
+      throw new Error("Spend cap cannot be negative");
+    }
+
+    // Get all traders
+    const allUsers = await ctx.db.query("users").collect();
+    const traders = allUsers.filter((u) => u.role === "trader");
+
+    const results = {
+      updated: [] as string[],
+      errors: [] as string[],
+    };
+
+    const newSpendCap = args.spendCap ?? null; // null means reset to default
+
+    for (const trader of traders) {
+      try {
+        const previousSpendCap = trader.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
+
+        await ctx.db.patch(trader._id, {
+          customSpendCap: newSpendCap,
+        });
+
+        results.updated.push(trader._id);
+      } catch (error: any) {
+        results.errors.push(`Failed to update trader ${trader.alias}: ${error.message}`);
+      }
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_all_traders_spend_cap",
+      args.reason,
+      undefined,
+      {
+        spendCap: newSpendCap,
+        tradersUpdated: results.updated.length,
+        tradersTotal: traders.length,
+      }
+    );
+
+    return { utid, ...results };
+  },
+});
+
 export const updateTraderSpendCap = mutation({
   args: {
     adminId: v.id("users"),

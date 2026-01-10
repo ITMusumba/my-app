@@ -16,10 +16,13 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
   const negotiations = useQuery(api.negotiations.getFarmerNegotiations, { farmerId: userId });
   const confirmations = useQuery(api.farmerDashboard.getPayToLockConfirmations, { farmerId: userId });
   const deliveryDeadlines = useQuery(api.farmerDashboard.getDeliveryDeadlines, { farmerId: userId });
+  const expiredUTIDs = useQuery(api.farmerDashboard.getExpiredUTIDs, { farmerId: userId });
+  const transactionsLedger = useQuery(api.farmerDashboard.getSuccessfulTransactionsLedger, { farmerId: userId });
   
   const acceptOffer = useMutation(api.negotiations.acceptOffer);
   const rejectOffer = useMutation(api.negotiations.rejectOffer);
   const counterOffer = useMutation(api.negotiations.counterOffer);
+  const archiveUTID = useMutation(api.farmerDashboard.archiveUTID);
   
   const [countering, setCountering] = useState<Id<"negotiations"> | null>(null);
   const [counterPrice, setCounterPrice] = useState<string>("");
@@ -64,6 +67,58 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
 
     const formattedData = formatUTIDDataForExport(utidData);
     const filename = `farmer_utid_report_${new Date().toISOString().split("T")[0]}`;
+
+    if (format === "excel") {
+      exportToExcel(formattedData, filename, "Farmer");
+    } else {
+      exportToPDF(formattedData, filename, "Farmer");
+    }
+  };
+
+  const handleArchiveUTID = async (unitId: Id<"listingUnits">) => {
+    setMessage(null);
+    try {
+      await archiveUTID({
+        farmerId: userId,
+        unitId: unitId,
+      });
+      setMessage({
+        type: "success",
+        text: "UTID archived successfully.",
+      });
+      setTimeout(() => setMessage(null), 5000);
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to archive UTID: ${error.message}` });
+    }
+  };
+
+  const handleExportLedger = (format: "excel" | "pdf") => {
+    if (!transactionsLedger || !transactionsLedger.transactions || transactionsLedger.transactions.length === 0) {
+      alert("No transaction data available to export");
+      return;
+    }
+
+    // Format transactions ledger for export
+    const ledgerData = transactionsLedger.transactions.map((tx: any) => ({
+      utid: tx.lockUtid || "N/A",
+      type: "successful_transaction",
+      timestamp: tx.lockedAt || Date.now(),
+      status: "delivered",
+      details: {
+        produceType: tx.produceType,
+        kilos: tx.kilos,
+        desiredPricePerKilo: tx.desiredPricePerKilo,
+        negotiatedPricePerKilo: tx.negotiatedPricePerKilo,
+        finalPricePerKilo: tx.finalPricePerKilo,
+        totalEarned: tx.totalEarned,
+        soldToBuyer: tx.soldToBuyer,
+        buyerPurchaseUtid: tx.buyerPurchaseUtid || "N/A",
+        priceAction: tx.priceAction,
+      },
+    }));
+
+    const formattedData = formatUTIDDataForExport(ledgerData);
+    const filename = `farmer_transactions_ledger_${new Date().toISOString().split("T")[0]}`;
 
     if (format === "excel") {
       exportToExcel(formattedData, filename, "Farmer");
@@ -505,15 +560,15 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
             {[...deliveryDeadlines.overdue.deadlines, ...deliveryDeadlines.pending.deadlines].map((delivery: any, index: number) => (
               <div key={index} style={{
                 padding: "1rem",
-                background: delivery.timeRemainingMs <= 0 ? "#ffebee" : "#e8f5e9",
+                background: delivery.isPastDeadline ? "#ffebee" : "#e8f5e9",
                 borderRadius: "8px",
-                border: `1px solid ${delivery.timeRemainingMs <= 0 ? "#ef5350" : "#4caf50"}`
+                border: `1px solid ${delivery.isPastDeadline ? "#ef5350" : "#4caf50"}`
               }}>
                 <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
-                  {delivery.produceType} - {delivery.kilos} kg
+                  {delivery.produceType} - 10 kg
                 </div>
                 <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>
-                  Deadline: {formatDate(delivery.deadline)}
+                  Deadline: {formatDate(delivery.deliveryDeadline)}
                 </div>
                 <div style={{
                   fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
@@ -532,6 +587,246 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Expired UTIDs */}
+      <div style={{
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Expired UTIDs
+        </h3>
+        {expiredUTIDs === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : expiredUTIDs.expiredUTIDs.length === 0 ? (
+          <p style={{ color: "#666" }}>No expired UTIDs. All deliveries are on time!</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {expiredUTIDs.expiredUTIDs.map((expired: any, index: number) => (
+              <div key={index} style={{
+                padding: "1rem",
+                background: "#fff3cd",
+                borderRadius: "8px",
+                border: "1px solid #ffc107"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                  <div>
+                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                      {expired.produceType} - {expired.kilos} kg
+                    </div>
+                    <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#c62828", fontWeight: "600" }}>
+                      ⚠️ EXPIRED - {expired.hoursExpired.toFixed(1)} hours ago ({expired.daysExpired.toFixed(1)} days)
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleArchiveUTID(expired.unitId)}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      background: "#6c757d",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                      fontWeight: "500"
+                    }}
+                  >
+                    Archive
+                  </button>
+                </div>
+                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+                  UTID: {expired.lockUtid}
+                </div>
+                <div style={{ fontSize: "clamp(0.75rem, 2vw, 0.8rem)", color: "#666", marginTop: "0.25rem" }}>
+                  Deadline: {formatDate(expired.deliveryDeadline)}
+                </div>
+                <div style={{ fontSize: "clamp(0.75rem, 2vw, 0.8rem)", color: "#666", marginTop: "0.25rem" }}>
+                  Status: {expired.deliveryStatus}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Successful Transactions Ledger */}
+      <div style={{
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h3 style={{ 
+            marginTop: 0, 
+            marginBottom: 0, 
+            fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+            color: "#2c2c2c",
+            fontFamily: '"Montserrat", sans-serif',
+            fontWeight: "600",
+            letterSpacing: "-0.01em"
+          }}>
+            Transactions Ledger
+          </h3>
+          {transactionsLedger && transactionsLedger.transactions && transactionsLedger.transactions.length > 0 && (
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={() => handleExportLedger("excel")}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#2e7d32",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: "500"
+                }}
+              >
+                📊 Excel
+              </button>
+              <button
+                onClick={() => handleExportLedger("pdf")}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#d32f2f",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: "500"
+                }}
+              >
+                📄 PDF
+              </button>
+            </div>
+          )}
+        </div>
+        {transactionsLedger === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : transactionsLedger.transactions.length === 0 ? (
+          <p style={{ color: "#666" }}>No successful transactions yet. Deliveries will appear here once completed.</p>
+        ) : (
+          <div>
+            <div style={{ 
+              padding: "1rem", 
+              background: "#e8f5e9", 
+              borderRadius: "8px", 
+              marginBottom: "1rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <div>
+                <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#666" }}>
+                  Total Transactions: <strong>{transactionsLedger.totalTransactions}</strong>
+                </div>
+                <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#666" }}>
+                  Total Kilos: <strong>{transactionsLedger.totalKilos} kg</strong>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "clamp(1rem, 3vw, 1.2rem)", fontWeight: "600", color: "#2e7d32" }}>
+                  Total Earned: {formatUGX(transactionsLedger.totalEarned)}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "600px", overflowY: "auto" }}>
+              {transactionsLedger.transactions.map((tx: any, index: number) => (
+                <div key={index} style={{
+                  padding: "1rem",
+                  background: "#f9f9f9",
+                  borderRadius: "8px",
+                  border: "1px solid #e0e0e0"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                    <div>
+                      <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                        {tx.produceType} - {tx.kilos} kg
+                      </div>
+                      <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", fontFamily: "monospace", wordBreak: "break-all" }}>
+                        UTID: {tx.lockUtid}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "clamp(0.9rem, 2.5vw, 1rem)", fontWeight: "600", color: "#2e7d32" }}>
+                        {formatUGX(tx.totalEarned)}
+                      </div>
+                      <div style={{ fontSize: "clamp(0.75rem, 2vw, 0.8rem)", color: "#666" }}>
+                        {formatUGX(tx.finalPricePerKilo)}/kg
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
+                    paddingTop: "0.5rem",
+                    borderTop: "1px solid #e0e0e0"
+                  }}>
+                    <div>
+                      <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>Desired Price</div>
+                      <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", fontWeight: "500" }}>
+                        {formatUGX(tx.desiredPricePerKilo)}/kg
+                      </div>
+                    </div>
+                    {tx.priceAction && (
+                      <div>
+                        <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>Negotiated Price</div>
+                        <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", fontWeight: "500" }}>
+                          {formatUGX(tx.negotiatedPricePerKilo)}/kg
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>Final Price</div>
+                      <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", fontWeight: "500" }}>
+                        {formatUGX(tx.finalPricePerKilo)}/kg
+                      </div>
+                    </div>
+                    {tx.soldToBuyer && (
+                      <div>
+                        <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>Sold to Buyer</div>
+                        <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", fontFamily: "monospace", wordBreak: "break-all" }}>
+                          {tx.buyerPurchaseUtid?.slice(-8) || "N/A"}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {tx.priceAction && (
+                    <div style={{ 
+                      marginTop: "0.5rem", 
+                      padding: "0.5rem", 
+                      background: "#fff", 
+                      borderRadius: "4px",
+                      fontSize: "clamp(0.7rem, 2vw, 0.75rem)",
+                      color: "#666"
+                    }}>
+                      <strong>Price Action:</strong> Original {formatUGX(tx.priceAction.originalPrice)}/kg → 
+                      Trader Offer {formatUGX(tx.priceAction.traderOffer)}/kg → 
+                      Final {formatUGX(tx.priceAction.finalNegotiated)}/kg
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

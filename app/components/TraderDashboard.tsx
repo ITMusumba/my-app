@@ -653,23 +653,96 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
           <p style={{ color: "#666" }}>No active transactions</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {activeUTIDs.utids.map((utid: any, index: number) => (
-              <div key={index} style={{
-                padding: "clamp(0.6rem, 2vw, 0.75rem)",
-                background: "#f5f5f5",
-                borderRadius: "6px",
-                fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)",
-                fontFamily: "monospace",
-                wordBreak: "break-all"
-              }}>
-                <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
-                  {utid.utid}
+            {activeUTIDs.utids.map((utid: any, index: number) => {
+              // Determine background color based on state
+              const getStateColor = (state: string) => {
+                if (state?.includes("Locked-In (In Transit)")) return "#fff3cd"; // Yellow for in transit
+                if (state?.includes("Inventory")) return "#d4edda"; // Green for inventory
+                if (state?.includes("Late")) return "#f8d7da"; // Red for late
+                return "#f5f5f5"; // Default gray
+              };
+              
+              const getStateBorderColor = (state: string) => {
+                if (state?.includes("Locked-In (In Transit)")) return "#ffc107"; // Yellow border
+                if (state?.includes("Inventory")) return "#28a745"; // Green border
+                if (state?.includes("Late")) return "#dc3545"; // Red border
+                return "#e0e0e0"; // Default border
+              };
+              
+              const state = utid.state || (utid.type === "unit_lock" ? "Locked-In" : utid.type === "inventory" ? "Inventory" : "Active");
+              
+              return (
+                <div key={index} style={{
+                  padding: "clamp(0.75rem, 2.5vw, 1rem)",
+                  background: getStateColor(state),
+                  borderRadius: "8px",
+                  border: `2px solid ${getStateBorderColor(state)}`,
+                  fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)",
+                  wordBreak: "break-all"
+                }}>
+                  <div style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "flex-start",
+                    marginBottom: "0.5rem",
+                    flexWrap: "wrap",
+                    gap: "0.5rem"
+                  }}>
+                    <div style={{ flex: 1, minWidth: "200px" }}>
+                      <div style={{ 
+                        fontSize: "clamp(0.7rem, 2vw, 0.75rem)", 
+                        color: "#666",
+                        marginBottom: "0.25rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        fontWeight: "600"
+                      }}>
+                        Transaction UTID
+                      </div>
+                      <div style={{ 
+                        fontWeight: "600", 
+                        fontFamily: "monospace",
+                        color: "#1a1a1a",
+                        fontSize: "clamp(0.8rem, 2.5vw, 0.9rem)"
+                      }}>
+                        {utid.utid}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: "0.25rem 0.75rem",
+                      background: state.includes("Locked-In (In Transit)") ? "#ff9800" 
+                        : state.includes("Inventory") ? "#28a745"
+                        : state.includes("Late") ? "#dc3545"
+                        : "#6c757d",
+                      color: "#fff",
+                      borderRadius: "4px",
+                      fontSize: "clamp(0.7rem, 2vw, 0.75rem)",
+                      fontWeight: "600",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      whiteSpace: "nowrap"
+                    }}>
+                      {state}
+                    </div>
+                  </div>
+                  <div style={{ 
+                    fontSize: "clamp(0.7rem, 2vw, 0.75rem)", 
+                    color: "#666",
+                    display: "flex",
+                    gap: "1rem",
+                    flexWrap: "wrap"
+                  }}>
+                    <span>Type: <strong>{utid.type}</strong></span>
+                    {utid.status && (
+                      <span>Status: <strong>{utid.status}</strong></span>
+                    )}
+                    {utid.entities && utid.entities.length > 0 && utid.entities[0].produceType && (
+                      <span>Produce: <strong>{utid.entities[0].produceType}</strong></span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>
-                  Type: {utid.type} | Status: {utid.status || "active"}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
