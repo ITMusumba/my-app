@@ -30,6 +30,9 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
   const [isDepositing, setIsDepositing] = useState(false);
   const [depositMessage, setDepositMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [proView, setProView] = useState(false);
+  const [counterPrices, setCounterPrices] = useState<{ [key: string]: string }>({});
+  const [processingOffers, setProcessingOffers] = useState<{ [key: string]: boolean }>({});
+  const [offerMessages, setOfferMessages] = useState<{ [key: string]: { type: "success" | "error"; text: string } }>({});
   const user = useQuery(api.auth.getUser, { userId });
 
   const formatUGX = (amount: number) => {
