@@ -180,8 +180,6 @@ export const getAllActiveUTIDs = query({
         } : null,
         acquiredAt: inv.acquiredAt, // Timestamp when received at storage
         is100kgBlock: inv.is100kgBlock,
-        produceType: inv.produceType,
-        acquiredAt: inv.acquiredAt,
       });
     }
 
