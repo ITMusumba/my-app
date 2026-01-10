@@ -155,7 +155,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
       if (selectedInventoryUtids.size === inventory.inventory.length) {
         setSelectedInventoryUtids(new Set());
       } else {
-        setSelectedInventoryUtids(new Set(inventory.inventory.map((item: any) => item.inventoryUtid)));
+        setSelectedInventoryUtids(new Set(inventory?.inventory?.map((item: any) => item.inventoryUtid) || []));
       }
     }
   };
@@ -751,7 +751,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
             
             {/* Card View for Mobile (fallback) */}
             <div style={{ display: "none", flexDirection: "column", gap: "1rem" }}>
-            {inventory.inventory.map((item: any, index: number) => {
+            {inventory?.inventory?.map((item: any, index: number) => {
               const itemId = item.inventoryId;
               const isPurchasing = purchasing === itemId;
               const canPurchase = windowStatus?.isOpen && !isPurchasing;
