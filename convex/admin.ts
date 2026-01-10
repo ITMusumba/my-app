@@ -9,6 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { generateUTID, getStorageFeeRate, getBuyerServiceFeePercentage, getUgandaTime } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY, DEFAULT_BUYER_SERVICE_FEE_PERCENTAGE } from "./constants";
 import { Id } from "./_generated/dataModel";
@@ -240,8 +241,17 @@ export const confirmDeliveryToStorageByUTID = mutation({
       throw new Error(`No locked units found with UTID: ${args.lockUtid}`);
     }
 
-    // Group units by trader and produce type
-    const unitsByTraderAndProduce = new Map<string, { traderId: Id<"users">; produceType: string; units: typeof lockedUnits; listingId: Id<"listings"> }>();
+    // Group units by trader, produce type, and storage location
+    // Also preserve quality rating and unit price (actual purchase price after negotiation)
+    const unitsByTraderProduceLocation = new Map<string, { 
+      traderId: Id<"users">; 
+      produceType: string; 
+      storageLocationId: Id<"storageLocations">;
+      qualityRating?: string;
+      unitPrice: number; // Actual purchase price per kilo
+      units: typeof lockedUnits; 
+      listingId: Id<"listings">;
+    }>();
 
     for (const unit of lockedUnits) {
       if (!unit.lockedBy) continue;
@@ -249,16 +259,28 @@ export const confirmDeliveryToStorageByUTID = mutation({
       const listing = await ctx.db.get(unit.listingId);
       if (!listing) continue;
 
-      const key = `${unit.lockedBy}_${listing.produceType}`;
-      if (!unitsByTraderAndProduce.has(key)) {
-        unitsByTraderAndProduce.set(key, {
+      // Get actual purchase price - check if there was a negotiation
+      let actualPricePerKilo = listing.pricePerKilo;
+      if (unit.activeNegotiationId) {
+        const negotiation = await ctx.db.get(unit.activeNegotiationId);
+        if (negotiation && negotiation.status === "accepted" && negotiation.currentPricePerKilo) {
+          actualPricePerKilo = negotiation.currentPricePerKilo;
+        }
+      }
+
+      const key = `${unit.lockedBy}_${listing.produceType}_${listing.storageLocationId}`;
+      if (!unitsByTraderProduceLocation.has(key)) {
+        unitsByTraderProduceLocation.set(key, {
           traderId: unit.lockedBy,
           produceType: listing.produceType,
+          storageLocationId: listing.storageLocationId,
+          qualityRating: listing.qualityRating,
+          unitPrice: actualPricePerKilo,
           units: [],
           listingId: listing._id,
         });
       }
-      unitsByTraderAndProduce.get(key)!.units.push(unit);
+      unitsByTraderProduceLocation.get(key)!.units.push(unit);
     }
 
     const results = {
@@ -267,8 +289,8 @@ export const confirmDeliveryToStorageByUTID = mutation({
       errors: [] as string[],
     };
 
-    // Create inventory for each trader/produce combination
-    for (const [key, group] of unitsByTraderAndProduce.entries()) {
+    // Create inventory for each trader/produce/location combination
+    for (const [key, group] of unitsByTraderProduceLocation.entries()) {
       try {
         // Calculate total kilos
         let totalKilos = 0;
@@ -279,20 +301,25 @@ export const confirmDeliveryToStorageByUTID = mutation({
           }
         }
 
-        // Generate inventory UTID
-        const inventoryUtid = generateUTID("admin");
+        // Generate delivery UTID (this is when payment actually goes through - from pending to paid)
+        const deliveryUtid = generateUTID("admin");
 
-        // Create trader inventory
+        // Create trader inventory - preserve location, quality, and actual negotiated price
+        // This UTID represents the delivery confirmation, showing the actual price paid
         const inventoryId = await ctx.db.insert("traderInventory", {
           traderId: group.traderId,
           listingUnitIds: group.units.map((u) => u._id),
           totalKilos,
           blockSize: 100, // Target block size
           produceType: group.produceType,
-          acquiredAt: getUgandaTime(),
-          storageStartTime: getUgandaTime(),
+          storageLocationId: group.storageLocationId,
+          qualityRating: group.qualityRating,
+          unitPrice: group.unitPrice, // Actual negotiated price per kilo (payment confirmed on delivery)
+          acquiredAt: getUgandaTime(), // Timestamp when received at storage (delivery confirmed)
+          storageStartTime: getUgandaTime(), // When storage fees start
           status: "in_storage",
-          utid: inventoryUtid,
+          utid: deliveryUtid, // Delivery UTID - shows actual price paid (payment moves from pending to paid)
+          is100kgBlock: false, // Will be set to true when 100kg block is created
         });
 
         // Update units to delivered status
@@ -305,14 +332,29 @@ export const confirmDeliveryToStorageByUTID = mutation({
 
         results.inventoryCreated.push({
           inventoryId,
-          inventoryUtid,
+          inventoryUtid: deliveryUtid, // Delivery UTID
           traderId: group.traderId,
           produceType: group.produceType,
           totalKilos,
           unitsCount: group.units.length,
+          actualPricePerKilo: group.unitPrice, // Actual price paid (shown in delivery UTID)
         });
       } catch (error: any) {
         results.errors.push(`Failed to create inventory for ${key}: ${error.message}`);
+      }
+    }
+
+    // After all inventory is created, check and create 100kg blocks for each unique trader
+    const uniqueTraders = new Set(results.inventoryCreated.map((r: any) => r.traderId));
+    for (const traderId of uniqueTraders) {
+      try {
+        // Call the internal mutation to check and create 100kg blocks
+        await ctx.runMutation(internal.inventoryBlocks.checkAndCreate100kgBlocks, {
+          traderId: traderId as Id<"users">,
+        });
+      } catch (blockError: any) {
+        // Log error but don't fail the delivery confirmation
+        results.errors.push(`Failed to create 100kg blocks for trader ${traderId}: ${blockError.message}`);
       }
     }
 
@@ -711,6 +753,203 @@ export const updateKiloShavingRate = mutation({
 /**
  * Get current kilo-shaving rate (admin only)
  */
+/**
+ * Get all storage locations (admin only)
+ */
+export const getStorageLocations = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+    const locations = await ctx.db
+      .query("storageLocations")
+      .collect();
+    return locations.sort((a, b) => a.order - b.order);
+  },
+});
+
+/**
+ * Add storage location (admin only)
+ */
+export const addStorageLocation = mutation({
+  args: {
+    adminId: v.id("users"),
+    districtName: v.string(),
+    code: v.string(),
+    order: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (!args.districtName.trim()) {
+      throw new Error("District name cannot be empty");
+    }
+    if (!args.code.trim()) {
+      throw new Error("Code cannot be empty");
+    }
+
+    // Check if code already exists
+    const existing = await ctx.db
+      .query("storageLocations")
+      .withIndex("by_code", (q) => q.eq("code", args.code.trim().toUpperCase()))
+      .first();
+    if (existing) {
+      throw new Error(`Storage location with code "${args.code}" already exists`);
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "add_storage_location",
+      args.reason,
+      undefined,
+      {
+        districtName: args.districtName.trim(),
+        code: args.code.trim().toUpperCase(),
+        order: args.order,
+      }
+    );
+
+    const locationId = await ctx.db.insert("storageLocations", {
+      districtName: args.districtName.trim(),
+      code: args.code.trim().toUpperCase(),
+      order: args.order,
+      active: true,
+      createdAt: getUgandaTime(),
+      createdBy: args.adminId,
+      utid,
+    });
+
+    return { utid, locationId, districtName: args.districtName.trim(), code: args.code.trim().toUpperCase() };
+  },
+});
+
+/**
+ * Update storage location (admin only)
+ */
+export const updateStorageLocation = mutation({
+  args: {
+    adminId: v.id("users"),
+    locationId: v.id("storageLocations"),
+    districtName: v.optional(v.string()),
+    code: v.optional(v.string()),
+    order: v.optional(v.number()),
+    active: v.optional(v.boolean()),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const location = await ctx.db.get(args.locationId);
+    if (!location) {
+      throw new Error("Storage location not found");
+    }
+
+    const previousState = {
+      districtName: location.districtName,
+      code: location.code,
+      order: location.order,
+      active: location.active,
+    };
+
+    const updates: any = {};
+    if (args.districtName !== undefined) {
+      if (!args.districtName.trim()) {
+        throw new Error("District name cannot be empty");
+      }
+      updates.districtName = args.districtName.trim();
+    }
+    if (args.code !== undefined) {
+      if (!args.code.trim()) {
+        throw new Error("Code cannot be empty");
+      }
+      const newCode = args.code.trim().toUpperCase();
+      if (newCode !== location.code) {
+        // Check if new code already exists
+        const existing = await ctx.db
+          .query("storageLocations")
+          .withIndex("by_code", (q) => q.eq("code", newCode))
+          .first();
+        if (existing) {
+          throw new Error(`Storage location with code "${newCode}" already exists`);
+        }
+        updates.code = newCode;
+      }
+    }
+    if (args.order !== undefined) {
+      updates.order = args.order;
+    }
+    if (args.active !== undefined) {
+      updates.active = args.active;
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_storage_location",
+      args.reason,
+      undefined,
+      {
+        locationId: args.locationId,
+        previousState,
+        newState: updates,
+      }
+    );
+
+    await ctx.db.patch(args.locationId, updates);
+
+    return { utid, locationId: args.locationId, ...updates };
+  },
+});
+
+/**
+ * Delete storage location (admin only)
+ */
+export const deleteStorageLocation = mutation({
+  args: {
+    adminId: v.id("users"),
+    locationId: v.id("storageLocations"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const location = await ctx.db.get(args.locationId);
+    if (!location) {
+      throw new Error("Storage location not found");
+    }
+
+    // Check if location is being used in any active listings
+    const activeListings = await ctx.db
+      .query("listings")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+    const usingLocation = activeListings.some((listing) => listing.storageLocationId === args.locationId);
+    if (usingLocation) {
+      throw new Error("Cannot delete storage location that is being used in active listings");
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "delete_storage_location",
+      args.reason,
+      undefined,
+      {
+        locationId: args.locationId,
+        districtName: location.districtName,
+        code: location.code,
+      }
+    );
+
+    await ctx.db.delete(args.locationId);
+
+    return { utid, locationId: args.locationId };
+  },
+});
+
 /**
  * Get today's system metrics (admin only)
  * Returns metrics for Open, Locked, Delivered, Collectable, and Picked Up listings

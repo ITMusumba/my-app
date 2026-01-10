@@ -6,6 +6,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { TraderListings } from "./TraderListings";
 import { useState } from "react";
 import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
+import { exportUTIDsByCategory, exportUTIDsByCategoryPDF, exportInventoryVolume, exportCapitalVolume } from "../utils/traderReports";
 
 interface TraderDashboardProps {
   userId: Id<"users">;
@@ -80,13 +81,53 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
 
     const formattedData = formatUTIDDataForExport(activeUTIDs.utids);
     const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000); // Convert back to UTC for ISO string
-    const filename = `trader_utid_report_${ugandaDate.toISOString().split("T")[0]}`;
+    const filename = `trader_report_${ugandaDate.toISOString().split("T")[0]}`;
 
     if (format === "excel") {
       exportToExcel(formattedData, filename, "Trader");
     } else {
       exportToPDF(formattedData, filename, "Trader", user?.alias);
     }
+  };
+
+  const handleExportUTIDsByCategory = (category: string, format: "excel" | "pdf") => {
+    if (!activeUTIDs || !activeUTIDs.utids || activeUTIDs.utids.length === 0) {
+      alert("No UTID data available to export");
+      return;
+    }
+
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000);
+    const filename = `trader_report_${ugandaDate.toISOString().split("T")[0]}`;
+
+    if (format === "excel") {
+      exportUTIDsByCategory(activeUTIDs.utids, category, filename);
+    } else {
+      exportUTIDsByCategoryPDF(activeUTIDs.utids, category, filename, user?.alias);
+    }
+  };
+
+  const handleExportInventoryVolume = (format: "excel" | "pdf") => {
+    if (!inventory || !inventory.inventory || inventory.inventory.length === 0) {
+      alert("No inventory data available to export");
+      return;
+    }
+
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000);
+    const filename = `trader_report_${ugandaDate.toISOString().split("T")[0]}`;
+
+    exportInventoryVolume(inventory.inventory, filename, format, user?.alias);
+  };
+
+  const handleExportCapitalVolume = (format: "excel" | "pdf") => {
+    if (!ledger || !exposure) {
+      alert("No capital data available to export");
+      return;
+    }
+
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000);
+    const filename = `trader_report_${ugandaDate.toISOString().split("T")[0]}`;
+
+    exportCapitalVolume(ledger, exposure, filename, format, user?.alias);
   };
 
   // Calculate wallet investment percentage for simple view
@@ -1132,6 +1173,149 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
             })}
           </div>
         )}
+      </div>
+
+      {/* Comprehensive Reports Section */}
+      <div style={{
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+          Comprehensive Reports
+        </h3>
+        
+        {/* UTID Reports by Category */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "clamp(1rem, 3vw, 1.1rem)", color: "#666" }}>
+            UTID Reports by Category
+          </h4>
+          {activeUTIDs && activeUTIDs.utids && activeUTIDs.utids.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              {Array.from(new Set(activeUTIDs.utids.map((utid: any) => utid.type))).map((category: string) => {
+                const count = activeUTIDs.utids.filter((utid: any) => utid.type === category).length;
+                return (
+                  <div key={category} style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.85rem", color: "#666" }}>{category} ({count}):</span>
+                    <button
+                      onClick={() => handleExportUTIDsByCategory(category, "excel")}
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        background: "#2e7d32",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        fontWeight: "500"
+                      }}
+                    >
+                      Excel
+                    </button>
+                    <button
+                      onClick={() => handleExportUTIDsByCategory(category, "pdf")}
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        background: "#d32f2f",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        fontWeight: "500"
+                      }}
+                    >
+                      PDF
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ color: "#999", fontSize: "0.85rem" }}>No UTID data available</p>
+          )}
+        </div>
+
+        {/* Inventory Volume Report */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "clamp(1rem, 3vw, 1.1rem)", color: "#666" }}>
+            Inventory Volume Report (Produce In & Out)
+          </h4>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={() => handleExportInventoryVolume("excel")}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#2e7d32",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "500"
+              }}
+            >
+              📊 Export Excel
+            </button>
+            <button
+              onClick={() => handleExportInventoryVolume("pdf")}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#d32f2f",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "500"
+              }}
+            >
+              📄 Export PDF
+            </button>
+          </div>
+        </div>
+
+        {/* Capital Volume Report */}
+        <div>
+          <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "clamp(1rem, 3vw, 1.1rem)", color: "#666" }}>
+            Capital Volume Report (Capital Exposed & Revenue Earned)
+          </h4>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              onClick={() => handleExportCapitalVolume("excel")}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#2e7d32",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "500"
+              }}
+            >
+              📊 Export Excel
+            </button>
+            <button
+              onClick={() => handleExportCapitalVolume("pdf")}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#d32f2f",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: "500"
+              }}
+            >
+              📄 Export PDF
+            </button>
+          </div>
+        </div>
       </div>
 
           {/* Available Listings for Negotiations */}
