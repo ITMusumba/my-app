@@ -75,6 +75,7 @@ export const createPilotUsers = mutation({
           email: userData.email,
           role: userData.role,
           alias,
+          state: "active", // Initial state for new users
           createdAt: Date.now(),
           lastActiveAt: Date.now(),
           passwordHash,

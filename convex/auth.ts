@@ -75,6 +75,7 @@ export const createUser = mutation({
       email: args.email,
       role: args.role,
       alias,
+      state: "active", // Initial state for new users
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
       passwordHash,
@@ -138,6 +139,7 @@ export const login = mutation({
         email: args.email,
         role,
         alias,
+        state: "active", // Initial state for new users
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
         passwordHash,
