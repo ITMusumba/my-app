@@ -11,8 +11,9 @@
 
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Seed demo data for pilot testing
