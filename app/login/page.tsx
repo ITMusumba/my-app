@@ -1,22 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
+import { getDeploymentMode, getDeploymentModeLabel } from "../utils/deployment";
 
 /**
- * Pilot Login Page
+ * Login Page
  * 
- * All test users share the same password: Farm2Market2024
- * ⚠️ PILOT ONLY - Simple authentication for testing
+ * Supports both pilot and dev deployment modes
+ * - Pilot: Shared password authentication (Farm2Market2024)
+ * - Dev: Same authentication system (for now)
  */
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deploymentMode, setDeploymentMode] = useState<"pilot" | "dev">("pilot");
   const router = useRouter();
+  
+  // Detect deployment mode
+  useEffect(() => {
+    setDeploymentMode(getDeploymentMode());
+  }, []);
   
   const login = useMutation(api.auth.login);
 
@@ -26,23 +34,36 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Validate inputs
+      if (!email.trim()) {
+        setError("Email is required");
+        setLoading(false);
+        return;
+      }
+      if (!password.trim()) {
+        setError("Password is required");
+        setLoading(false);
+        return;
+      }
+
       const result = await login({
-        email,
-        password,
+        email: email.trim(),
+        password: password.trim(),
       });
 
-      // Store user info in localStorage (pilot only)
+      // Store user info in localStorage
       localStorage.setItem("pilot_user", JSON.stringify(result));
       
       // Redirect to dashboard
       router.push("/");
     } catch (err: any) {
+      console.error("Login error:", err);
       const errorMessage = err.message || "Login failed";
       // Provide helpful error message
-      if (errorMessage.includes("User not found") || errorMessage.includes("Invalid email")) {
+      if (errorMessage.includes("User not found") || errorMessage.includes("Invalid email") || errorMessage.includes("Invalid password")) {
         setError(`${errorMessage}. Make sure test users are created first using the pilotSetup.createPilotUsers mutation.`);
       } else {
-        setError(errorMessage);
+        setError(errorMessage || "An unexpected error occurred. Please check the browser console for details.");
       }
     } finally {
       setLoading(false);
@@ -70,7 +91,7 @@ export default function LoginPage() {
           Farm2Market Uganda
         </h1>
         <p style={{ color: "#666", marginBottom: "2rem", fontSize: "0.9rem" }}>
-          Pilot Login - All test users share the same password
+          {deploymentMode === "dev" ? "Development" : "Pilot"} Login - All test users share the same password
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -152,12 +173,12 @@ export default function LoginPage() {
         <div style={{
           marginTop: "2rem",
           padding: "1rem",
-          background: "#fff3cd",
+          background: deploymentMode === "dev" ? "#e3f2fd" : "#fff3cd",
           borderRadius: "6px",
-          border: "1px solid #ffc107"
+          border: `1px solid ${deploymentMode === "dev" ? "#2196f3" : "#ffc107"}`
         }}>
-          <p style={{ margin: 0, fontSize: "0.85rem", color: "#856404" }}>
-            ⚠️ <strong>Pilot Mode:</strong> This is a test environment. All users share the same password.
+          <p style={{ margin: 0, fontSize: "0.85rem", color: deploymentMode === "dev" ? "#1565c0" : "#856404" }}>
+            ⚠️ <strong>{getDeploymentModeLabel()} Mode:</strong> This is a test environment. All users share the same password.
           </p>
         </div>
       </div>
