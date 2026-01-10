@@ -205,9 +205,9 @@ export async function getBuyerServiceFeePercentage(
  */
 export async function calculateInventoryPricePerKilo(
   ctx: { db: DatabaseReader | DatabaseWriter },
-  inventoryId: string
+  inventoryId: Id<"traderInventory">
 ): Promise<number> {
-  const inventory = await ctx.db.get(inventoryId as any);
+  const inventory = await ctx.db.get(inventoryId);
   if (!inventory || !inventory.listingUnitIds || inventory.listingUnitIds.length === 0) {
     return 0;
   }
