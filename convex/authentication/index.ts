@@ -63,7 +63,10 @@ import { generateUTID } from "../utils/index";
 import { getUserById } from "../userManagement/index";
 import type { DatabaseWriter } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
-import * as bcrypt from "bcrypt";
+// NOTE: bcrypt is temporarily removed to allow deployment
+// Password hashing actions are available in convex/authentication/passwordHash.ts
+// TODO: Integrate password hashing actions when production auth is activated
+// import * as bcrypt from "bcrypt";
 
 // ============================================================================
 // CONSTANTS
@@ -139,10 +142,11 @@ async function hashString(input: string): Promise<string> {
  * @returns Password hash (bcrypt format, includes salt)
  */
 async function hashPassword(password: string): Promise<string> {
-  // Use bcrypt with 10 rounds (configurable, 10 is standard)
-  // bcrypt automatically generates and includes salt in the hash
-  const saltRounds = 10;
-  return await bcrypt.hash(password, saltRounds);
+  // NOTE: This is a placeholder - production auth not yet active
+  // When production auth is activated, this should call the password hashing action
+  // from convex/authentication/passwordHash.ts via ctx.runAction
+  // For now, return error to prevent accidental use
+  throw new Error("Production authentication not yet activated. Use pilot auth.");
 }
 
 /**
@@ -157,13 +161,11 @@ async function hashPassword(password: string): Promise<string> {
  * @returns true if password matches, false otherwise
  */
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  // bcrypt.compare is constant-time and handles hash format validation
-  try {
-    return await bcrypt.compare(password, storedHash);
-  } catch (error) {
-    // Invalid hash format or comparison error
-    return false;
-  }
+  // NOTE: This is a placeholder - production auth not yet active
+  // When production auth is activated, this should call the password verification action
+  // from convex/authentication/passwordHash.ts via ctx.runAction
+  // For now, return false to prevent accidental use
+  throw new Error("Production authentication not yet activated. Use pilot auth.");
 }
 
 
