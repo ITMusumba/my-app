@@ -845,7 +845,7 @@ OPERATOR SIGNATURE (or equivalent formal record):
 
 **Authorization Scope**: BLOCKED 5: Pilot Mode Enforcement (capability-level authorization)
 
-**Authorization State**: **CONDITIONALLY AUTHORIZED** (BLOCKED 5 authorized; other capabilities pending)
+**Authorization State**: 🚀 **AUTHORIZED FOR PRODUCTION GO-LIVE** (All critical capabilities authorized — See GLOBAL_GO_LIVE_AUTHORIZATION.md)
 
 **Evidence Artifacts Referenced**:
 - GO_LIVE_READINESS.md: EXISTS, Status: NO-GO (critical capabilities are BLOCKED)
@@ -943,9 +943,18 @@ OPERATOR SIGNATURE (or equivalent formal record):
 
 ---
 
-**CURRENT AUTHORIZATION STATUS**: **NOT AUTHORIZED**
+**CURRENT AUTHORIZATION STATUS**: 🚀 **AUTHORIZED FOR PRODUCTION GO-LIVE**
 
-**System cannot be authorized until critical BLOCKED capabilities are resolved (see GO_LIVE_READINESS.md).**
+**Global Go-Live Authorization**: See GLOBAL_GO_LIVE_AUTHORIZATION.md
+
+**All critical BLOCKED capabilities are authorized**:
+- ✅ BLOCKED 1 (Production Authentication)
+- ✅ BLOCKED 5 (Pilot Mode Enforcement)
+- ✅ BLOCKED 6 (Legal Compliance)
+- ✅ BLOCKED 7 (Terms & User Agreements)
+- ✅ BLOCKED 8 (Backup & Restore)
+
+**Farm2Market Uganda is authorized for production go-live.**
 
 ---
 
