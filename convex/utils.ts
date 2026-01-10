@@ -46,8 +46,16 @@ export async function calculateTraderExposureInternal(
   traderId: string
 ) {
   // Get trader to check for custom spend cap
-  const trader = await ctx.db.get(traderId as any);
-  const spendCap = trader?.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
+  const trader = await ctx.db.get(traderId as Id<"users">);
+  if (!trader || trader.role !== "trader") {
+    return {
+      totalExposure: 0,
+      lockedCapital: 0,
+      lockedOrdersValue: 0,
+      inventoryValue: 0,
+    };
+  }
+  const spendCap = trader.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
 
   // Get locked capital from wallet ledger
   const capitalEntries = await ctx.db

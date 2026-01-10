@@ -25,6 +25,7 @@ import type * as errors_types from "../errors/types.js";
 import type * as farmerDashboard from "../farmerDashboard.js";
 import type * as introspection from "../introspection.js";
 import type * as listings from "../listings.js";
+import type * as negotiations from "../negotiations.js";
 import type * as notifications from "../notifications.js";
 import type * as payments from "../payments.js";
 import type * as pesapal from "../pesapal.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   farmerDashboard: typeof farmerDashboard;
   introspection: typeof introspection;
   listings: typeof listings;
+  negotiations: typeof negotiations;
   notifications: typeof notifications;
   payments: typeof payments;
   pesapal: typeof pesapal;

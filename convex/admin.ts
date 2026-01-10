@@ -540,9 +540,6 @@ export const resetAllTransactions = mutation({
   },
 });
 
-// Import getStorageFeeRate from utils
-import { getStorageFeeRate } from "./utils";
-
 /**
  * Update kilo-shaving rate (admin only)
  * Changes the storage fee rate (kilos per day per 100kg block)
