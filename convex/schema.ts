@@ -83,7 +83,7 @@ export default defineSchema({
     deliverySLA: v.number(), // Timestamp: 6 hours after payment
     qualityRating: v.optional(v.string()), // Quality rating from admin-managed dropdown (e.g., "Premium", "Good", "Fair")
     qualityComment: v.optional(v.string()), // Farmer's text comment about produce quality
-    storageLocationId: v.id("storageLocations"), // Storage location (district) where produce will be delivered
+    storageLocationId: v.optional(v.id("storageLocations")), // Storage location (district) where produce will be delivered (optional for backward compatibility with existing data)
   })
     .index("by_farmer", ["farmerId"])
     .index("by_utid", ["utid"])
