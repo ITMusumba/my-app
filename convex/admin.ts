@@ -253,6 +253,8 @@ export const confirmDeliveryToStorageByUTID = mutation({
       listingId: Id<"listings">;
     }>();
 
+    const errors: string[] = [];
+
     for (const unit of lockedUnits) {
       if (!unit.lockedBy) continue;
 
@@ -261,7 +263,7 @@ export const confirmDeliveryToStorageByUTID = mutation({
 
       // Skip if listing doesn't have storageLocationId (old data)
       if (!listing.storageLocationId) {
-        results.errors.push(`Listing ${listing.utid} is missing storageLocationId. Please update the listing.`);
+        errors.push(`Listing ${listing.utid} is missing storageLocationId. Please update the listing.`);
         continue;
       }
 
