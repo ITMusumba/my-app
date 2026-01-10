@@ -259,6 +259,12 @@ export const confirmDeliveryToStorageByUTID = mutation({
       const listing = await ctx.db.get(unit.listingId);
       if (!listing) continue;
 
+      // Skip if listing doesn't have storageLocationId (old data)
+      if (!listing.storageLocationId) {
+        results.errors.push(`Listing ${listing.utid} is missing storageLocationId. Please update the listing.`);
+        continue;
+      }
+
       // Get actual purchase price - check if there was a negotiation
       let actualPricePerKilo = listing.pricePerKilo;
       if (unit.activeNegotiationId) {

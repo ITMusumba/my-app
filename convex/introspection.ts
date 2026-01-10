@@ -85,8 +85,10 @@ export const getAllActiveUTIDs = query({
         });
       }
       const utidData = utidMap.get(listing.utid)!;
-      // Get storage location details
-      const storageLocation = await ctx.db.get(listing.storageLocationId);
+      // Get storage location details (if available)
+      const storageLocation = listing.storageLocationId 
+        ? await ctx.db.get(listing.storageLocationId)
+        : null;
       const totalPrice = listing.totalKilos * listing.pricePerKilo;
       utidData.entities.push({
         table: "listings",
