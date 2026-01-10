@@ -2,12 +2,14 @@
  * Utilities Module - Public Interface Only
  * 
  * Step: 1a (IMPLEMENTATION_SEQUENCE.md Step 1)
+ * Step 1b Extension: Alias Generation (ALIAS_GENERATION_PROPOSAL.md approved)
  * Status: Interface definition only (no implementation)
  * 
  * Context:
  * - convex/utils/README.md defines the full specification
  * - IMPLEMENTATION_BOUNDARIES.md applies
  * - INVARIANTS.md (4.1, 4.2, 6.1, 6.2) apply
+ * - ALIAS_GENERATION_PROPOSAL.md defines alias generation extension
  * 
  * Purpose:
  * This file defines ONLY the public interface (types, interfaces, function signatures).
@@ -228,6 +230,56 @@ export type SLACalculationResult = {
   timeRemaining: number;
 };
 
+/**
+ * Context for user alias generation.
+ * 
+ * Required for: generateUserAlias function
+ * Supports: User anonymity (DOMAIN_MODEL.md, BUSINESS_LOGIC.md)
+ * 
+ * Purpose:
+ * Generate stable, non-identifying aliases for user accounts.
+ * Aliases are deterministic, unique, and preserve user anonymity.
+ */
+export type UserAliasGenerationContext = {
+  /**
+   * User role (farmer, trader, buyer, admin).
+   * 
+   * Required: Yes
+   * Type: string (must be valid UserRole)
+   * Validation: Must not be empty
+   * Purpose: Role prefix for alias (e.g., "far" for farmer, "tra" for trader)
+   * 
+   * Note: Role is used only for prefix extraction, not for authorization.
+   */
+  role: string;
+
+  /**
+   * User email address.
+   * 
+   * Required: Yes
+   * Type: string (non-empty, valid email format)
+   * Validation: Must not be empty, must contain @ symbol
+   * Purpose: Source of uniqueness (hashed, not exposed in alias)
+   * 
+   * Note: Email is hashed and never exposed in the generated alias.
+   * This preserves user anonymity (no email leakage).
+   */
+  email: string;
+
+  /**
+   * Timestamp for alias generation (milliseconds since epoch).
+   * 
+   * Required: Yes
+   * Type: number (non-negative, finite)
+   * Validation: Must be non-negative, must be finite
+   * Purpose: Ensures uniqueness and determinism
+   * 
+   * Note: Must be passed as parameter (not accessed from global state).
+   * This ensures determinism and testability.
+   */
+  timestamp: number;
+};
+
 // ============================================================================
 // FUNCTION SIGNATURES
 // ============================================================================
@@ -375,6 +427,55 @@ export declare function calculateFarmerDeliverySLA(
 export declare function calculateBuyerPickupSLA(
   purchaseTime: number
 ): SLACalculationResult;
+
+/**
+ * Generate a stable, non-identifying alias for a user account.
+ * 
+ * Contract: Pure function, deterministic, stateless, no side effects
+ * Supports: User anonymity (DOMAIN_MODEL.md, BUSINESS_LOGIC.md)
+ * 
+ * Requirements:
+ * - Must be deterministic (same inputs = same alias)
+ * - Must be unique (different inputs = different alias, with extremely high probability)
+ * - Must be stable (once generated, cannot be changed)
+ * - Must be pure (no side effects)
+ * - Must be stateless (no internal state)
+ * - Must be non-identifying (no email, no real name exposed)
+ * 
+ * Format: {rolePrefix}_{timestampHash}_{emailHash}
+ * Example: "far_a3k9x2_m7p4q1"
+ * 
+ * Forbidden Behaviors:
+ * - No email leakage (email must be hashed, not exposed)
+ * - No randomness (must be deterministic)
+ * - No retries (collision handling is caller's responsibility)
+ * - No input mutation (inputs must be treated as readonly)
+ * - No database access (collision checking is caller's responsibility)
+ * 
+ * Failure Conditions:
+ * - If context is missing: throw MissingParameterError
+ * - If role is missing or empty: throw MissingParameterError
+ * - If email is missing or empty: throw MissingParameterError
+ * - If timestamp is missing: throw MissingParameterError
+ * - If role is not a string: throw InvalidParameterError
+ * - If email is not a string: throw InvalidParameterError
+ * - If email does not contain @ symbol: throw InvalidParameterError
+ * - If timestamp is not a number: throw InvalidParameterError
+ * - If timestamp is negative or non-finite: throw InvalidParameterError
+ * - If alias generation fails: throw DeterminismViolationError
+ * 
+ * @param context - Context for alias generation (role, email, timestamp)
+ * @returns Alias string (stable, non-identifying, deterministic identifier)
+ * @throws MissingParameterError if required parameters are missing
+ * @throws InvalidParameterError if parameters are invalid
+ * @throws DeterminismViolationError if alias generation is non-deterministic
+ * 
+ * Note: Collision checking is the responsibility of the calling module (User Management).
+ * Utilities provides pure generation only. Collision probability is negligible with proper hashing.
+ */
+export declare function generateUserAlias(
+  context: UserAliasGenerationContext
+): string;
 
 // ============================================================================
 // ERROR TYPE DEFINITIONS (Names Only, No Implementations)

@@ -173,8 +173,13 @@ export const lockUnit = mutation({
     unitId: v.id("listingUnits"),
   },
   handler: async (ctx, args) => {
-    // Pilot mode check REMOVED - traders can make demo purchases in pilot mode
-    // This allows continuous testing of the purchase flow
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves money (locks capital and unit), so it must be blocked
+    // during pilot mode. The check happens FIRST to fail fast.
+    await checkPilotMode(ctx);
+
     return await lockUnitInternal(ctx, args.traderId, args.unitId);
   },
 });
@@ -189,8 +194,12 @@ export const lockUnitByListing = mutation({
     listingId: v.id("listings"),
   },
   handler: async (ctx, args) => {
-    // Pilot mode check REMOVED - traders can make demo purchases in pilot mode
-    // This allows continuous testing of the purchase flow
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves money (locks capital and unit), so it must be blocked
+    // during pilot mode. The check happens FIRST to fail fast.
+    await checkPilotMode(ctx);
 
     // Get listing
     const listing = await ctx.db.get(args.listingId);

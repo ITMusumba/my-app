@@ -137,6 +137,13 @@ export const depositCapital = mutation({
     amount: v.number(), // In UGX
   },
   handler: async (ctx, args) => {
+    // ============================================================
+    // PILOT MODE CHECK (MUST BE FIRST - BEFORE ANY OPERATIONS)
+    // ============================================================
+    // This mutation moves money (deposits capital), so it must be blocked
+    // during pilot mode. The check happens FIRST to fail fast.
+    await checkPilotMode(ctx);
+
     // Verify user is a trader
     const user = await ctx.db.get(args.traderId);
     if (!user || user.role !== "trader") {

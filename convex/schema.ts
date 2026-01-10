@@ -21,13 +21,13 @@ export default defineSchema({
    * - System-generated aliases for anonymity
    */
   users: defineTable({
-    email: v.string(),
+    email: v.string(), // Unique per user (enforced at mutation level, not schema level)
     role: v.union(v.literal("farmer"), v.literal("trader"), v.literal("buyer"), v.literal("admin")),
     alias: v.string(), // System-generated, stable, non-identifying
+    state: v.union(v.literal("active"), v.literal("suspended"), v.literal("deleted")), // User account state
     createdAt: v.number(),
     lastActiveAt: v.number(),
-    // Pilot mode: shared password for all test users
-    passwordHash: v.optional(v.string()), // Simple hash for pilot (not production-grade)
+    passwordHash: v.optional(v.string()), // Secure password hash (bcrypt/argon2). Required for production authentication.
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])
@@ -275,4 +275,43 @@ export default defineSchema({
     .index("by_action_type", ["actionType"])
     .index("by_timestamp", ["attemptedAt"])
     .index("by_user_timestamp", ["userId", "attemptedAt"]),
+
+  /**
+   * User sessions (stateful, database-backed)
+   * - Production authentication session management
+   * - Supports immediate revocation and compromise response
+   * - Session tokens are cryptographically secure random strings
+   * - Sessions can be invalidated immediately (logout, security invalidation)
+   */
+  sessions: defineTable({
+    userId: v.id("users"),
+    token: v.string(), // Cryptographically secure random token
+    expiresAt: v.number(), // Session expiration timestamp
+    createdAt: v.number(), // Session creation timestamp
+    lastActiveAt: v.number(), // Last activity timestamp (updated on each request)
+    invalidated: v.boolean(), // Session invalidation status
+    invalidatedAt: v.optional(v.number()), // Session invalidation timestamp (set when invalidated)
+  })
+    .index("by_user", ["userId"])
+    .index("by_token", ["token"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_user_active", ["userId", "invalidated"]), // Efficient lookup for active sessions per user (incident response)
+
+  /**
+   * Password reset tokens
+   * - Secure password reset flow (production authentication)
+   * - Tokens are hashed before storage (never stored in plaintext)
+   * - Single-use tokens (invalidated after use)
+   * - Time-limited tokens (expiration enforced)
+   */
+  passwordResetTokens: defineTable({
+    userId: v.id("users"),
+    tokenHash: v.string(), // Hashed reset token (never plaintext)
+    expiresAt: v.number(), // Token expiration timestamp
+    usedAt: v.optional(v.number()), // Timestamp when token was used (single-use enforcement)
+    createdAt: v.number(), // Token creation timestamp
+  })
+    .index("by_user", ["userId"])
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_expiresAt", ["expiresAt"]),
 });

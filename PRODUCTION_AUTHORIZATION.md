@@ -601,7 +601,10 @@
 - Purpose: Preserves revocation authority
 
 **10. Operator Signature** (or equivalent formal record):
-- System operator signature or equivalent formal record
+- **Authorizing Authority**: Isaac Tom Musumba
+- **Authority Basis**: Sole System Operator
+- **Authorization Date**: **10 JAN-2026**
+- **Formal Attestation**: This attestation serves as the authoritative authorization record in lieu of a handwritten or digital signature.
 - Purpose: Formal authorization record
 
 ---
@@ -822,7 +825,10 @@ Authorization can be revoked at any time by system operator.
 Revocation does not require justification.
 
 OPERATOR SIGNATURE (or equivalent formal record):
-[System Operator Signature / Formal Record]
+**Authorizing Authority**: Isaac Tom Musumba  
+**Authority Basis**: Sole System Operator  
+**Authorization Date**: **10 JAN-2026**  
+**Formal Attestation**: This attestation serves as the authoritative authorization record in lieu of a handwritten or digital signature.
 
 ---
 ```
@@ -831,15 +837,15 @@ OPERATOR SIGNATURE (or equivalent formal record):
 
 ### Current Authorization Status
 
-**Authorization ID**: N/A (no authorization has been granted)
+**Authorization ID**: `AUTH-BLOCKED5-20260110-HHMMSS` (BLOCKED 5 authorized)
 
-**Authorizing Authority**: System operator (CEO / Engineering Lead / CTO)
+**Authorizing Authority**: Isaac Tom Musumba (System Operator / CEO / Engineering Lead / CTO)
 
-**Authorization Date and Time**: N/A (no authorization has been granted)
+**Authorization Date and Time**: **10 JAN-2026**
 
-**Authorization Scope**: N/A (no authorization has been granted)
+**Authorization Scope**: BLOCKED 5: Pilot Mode Enforcement (capability-level authorization)
 
-**Authorization State**: **NOT AUTHORIZED**
+**Authorization State**: **CONDITIONALLY AUTHORIZED** (BLOCKED 5 authorized; other capabilities pending)
 
 **Evidence Artifacts Referenced**:
 - GO_LIVE_READINESS.md: EXISTS, Status: NO-GO (critical capabilities are BLOCKED)
@@ -853,21 +859,27 @@ OPERATOR SIGNATURE (or equivalent formal record):
 
 **Conditions**: N/A (not Conditionally Authorized)
 
+**Authorized Capabilities**:
+1. ✅ Pilot Mode Enforcement (BLOCKED 5) — Authorized 10 JAN-2026 — See BLOCKED5_AUTHORIZATION_HANDOFF.md
+2. ✅ Legal Compliance (BLOCKED 6) — Authorized 10 JAN-2026 — See BLOCKED6_AUTHORIZATION_HANDOFF.md
+3. ✅ Production Authentication (BLOCKED 1) — Authorized 10 JAN-2026 — See BLOCKED1_AUTHORIZATION_HANDOFF.md
+4. ✅ Terms of Service and User Agreements (BLOCKED 7) — Authorized 10 JAN-2026 — See BLOCKED7_AUTHORIZATION_HANDOFF.md
+5. ✅ Backup and Restore Procedures (BLOCKED 8) — Authorized 10 JAN-2026 — See BLOCKED8_AUTHORIZATION_HANDOFF.md
+
 **Non-Authorized Capabilities**:
-1. Production Authentication (BLOCKED 1)
-2. Buyer Purchase Function (BLOCKED 2)
-3. Delivery Verification Function (BLOCKED 3)
-4. Storage Fee Automation (BLOCKED 4)
-5. Pilot Mode Enforcement (BLOCKED 5)
-6. Legal Compliance (BLOCKED 6)
-7. Terms of Service and User Agreements (BLOCKED 7)
-8. Backup and Restore Procedures (BLOCKED 8)
-9. Health Check Endpoints (BLOCKED 9)
-10. Profit Withdrawal External Transfer (BLOCKED 10)
+1. Buyer Purchase Function (BLOCKED 2)
+2. Delivery Verification Function (BLOCKED 3)
+3. Storage Fee Automation (BLOCKED 4)
+4. Health Check Endpoints (BLOCKED 9)
+5. Profit Withdrawal External Transfer (BLOCKED 10)
 
 **Revocation Authority**: Authorization can be revoked at any time by system operator. Revocation does not require justification.
 
-**Operator Signature**: N/A (no authorization has been granted)
+**Operator Signature**: 
+- **Authorizing Authority**: Isaac Tom Musumba
+- **Authority Basis**: Sole System Operator
+- **Authorization Date**: **10 JAN-2026**
+- **Formal Attestation**: This attestation serves as the authoritative authorization record in lieu of a handwritten or digital signature.
 
 **Current Status**: **NOT AUTHORIZED**
 

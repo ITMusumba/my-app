@@ -2,6 +2,7 @@
 
 **Module**: Utilities  
 **Step**: 1b (IMPLEMENTATION_SEQUENCE.md Step 1)  
+**Step 1b Extension**: Alias Generation (ALIAS_GENERATION_PROPOSAL.md approved)
 **Status**: Test specification only (no implementation, no test code)  
 **Authority**: Single human (CEO / Engineering Lead / CTO)  
 **Last Updated**: Current system state
@@ -9,8 +10,11 @@
 **Context**: 
 - convex/utils/README.md defines the full specification
 - convex/utils/types.ts defines the public interface (Step 1a, approved and locked)
+- Step 1b extension: Alias generation (ALIAS_GENERATION_PROPOSAL.md approved)
 - IMPLEMENTATION_BOUNDARIES.md applies
 - INVARIANTS.md (4.1, 4.2, 6.1, 6.2) applies
+- DOMAIN_MODEL.md requires stable, non-identifying aliases
+- User Management (Step 5) depends on alias generation to unblock createUser
 
 **Purpose**: This document defines test specifications for the Utilities module. This is NOT executable test code. This defines what must be tested, not how to test it.
 
@@ -667,9 +671,362 @@
 
 ---
 
+## 6. Step 1b Extension: Alias Generation Test Specification
+
+**Module**: Utilities  
+**Step**: 1b (Utilities Extension — Alias Generation)  
+**Status**: Test specification only (no implementation, no test code)  
+**Authority**: Single human (CEO / Engineering Lead / CTO)  
+**Scope**: `generateUserAlias`
+
+**Context**:
+- Utilities module core (Step 1) is locked
+- Alias generation extension approved via re-authorization
+- Public interface (`convex/utils/types.ts`) is locked
+- User Management (Step 5) depends on this function to unblock `createUser`
+- IMPLEMENTATION_BOUNDARIES.md, MODULARITY_GUIDE.md apply
+- DOMAIN_MODEL.md requires stable, non-identifying aliases
+
+**Purpose**:
+Define what must be verified to ensure alias generation preserves Utilities module purity, determinism, and safety.
+This document defines constraints and invariants, not executable tests.
+
+---
+
+### 6.1 Test Principles
+
+#### 6.1.1 Specification-Only Tests
+
+- No test code
+- No executable assertions
+- No mock implementations
+- Tests describe requirements, not mechanics
+
+#### 6.1.2 Boundary Enforcement
+
+Tests must detect:
+- Any side effects
+- Any randomness
+- Any statefulness
+- Any dependency introduction
+- Any authority or logic creep
+
+#### 6.1.3 Determinism First
+
+Alias generation must be perfectly deterministic.
+Any deviation is a hard failure.
+
+---
+
+### 6.2 Interface Integrity Tests
+
+#### Test Category: Function Signature Integrity
+
+**Purpose**: Protect the public contract  
+**Contract Protected**: `convex/utils/types.ts`
+
+**Test Specification**:
+- Function name must be exactly `generateUserAlias`
+- Function must:
+  - Accept exactly one argument of type `UserAliasGenerationContext`
+  - Return a `string`
+- No optional parameters
+- No overloads
+- No default values
+- No additional exports
+
+**Failure Criteria**:
+- Signature mismatch
+- Additional parameters
+- Optional or defaulted fields
+- Additional exported symbols
+
+---
+
+#### Test Category: Input Type Shape Integrity
+
+**Purpose**: Ensure inputs are explicit and constrained  
+**Contract Protected**: `UserAliasGenerationContext`
+
+**Test Specification**:
+- Context must contain exactly:
+  - `role: string`
+  - `email: string`
+  - `timestamp: number`
+- All fields required
+- All fields readonly
+- No additional inferred fields
+
+**Failure Criteria**:
+- Missing fields
+- Optional fields
+- Additional properties
+- Mutable fields
+
+---
+
+### 6.3 Determinism & Purity Tests
+
+#### Test Category: Determinism
+
+**Purpose**: Guarantee stability  
+**Contract Protected**: Alias generation contract
+
+**Test Specification**:
+- Same inputs (`role`, `email`, `timestamp`) must always produce the same alias
+- Determinism must hold:
+  - Across function calls
+  - Across process restarts
+  - Across deployments
+- No dependency on:
+  - Global time
+  - Randomness
+  - Environment variables
+  - Execution order
+
+**Failure Criteria**:
+- Different outputs for identical inputs
+- Any dependency on ambient state
+- Any randomness detected
+
+---
+
+#### Test Category: Statelessness
+
+**Purpose**: Enforce Utilities purity  
+**Contract Protected**: Utilities module invariants
+
+**Test Specification**:
+- No internal memory
+- No caches
+- No counters
+- No static variables
+- No mutation of input arguments
+- No mutation of module-level state
+
+**Failure Criteria**:
+- State persists across calls
+- Inputs are modified
+- Internal variables affect future calls
+
+---
+
+### 6.4 Non-Identifying Alias Guarantees
+
+#### Test Category: Email Non-Disclosure
+
+**Purpose**: Preserve anonymity  
+**Contract Protected**: DOMAIN_MODEL.md
+
+**Test Specification**:
+- Alias must NOT:
+  - Contain full email
+  - Contain email prefix
+  - Contain email domain
+  - Contain recognizable substrings of email
+- Email may only be used as a hashed input
+- Alias must not be reversible to email
+
+**Failure Criteria**:
+- Plaintext email leakage
+- Domain leakage
+- Reversible alias construction
+
+---
+
+#### Test Category: Role Handling
+
+**Purpose**: Prevent role inference logic  
+**Contract Protected**: IMPLEMENTATION_BOUNDARIES.md
+
+**Test Specification**:
+- Role may only influence alias as a prefix
+- No branching behavior based on role
+- No permission logic
+- No role hierarchy
+- No conditional behavior beyond string processing
+
+**Failure Criteria**:
+- Role-based logic paths
+- Authorization assumptions
+- Non-prefix role behavior
+
+---
+
+### 6.5 Forbidden Behavior Detection Tests
+
+#### Test Category: Randomness Detection
+
+**Purpose**: Block non-determinism
+
+**Test Specification**:
+- No calls to:
+  - `Math.random`
+  - Cryptographic RNGs
+  - UUID generators
+- No entropy sources
+- No seeded randomness
+
+**Failure Criteria**:
+- Any randomness detected
+- Any probabilistic behavior
+
+---
+
+#### Test Category: Time Access Detection
+
+**Purpose**: Enforce explicit time control
+
+**Test Specification**:
+- No access to:
+  - `Date.now()`
+  - `new Date()`
+  - System clock APIs
+- Timestamp must come only from input
+
+**Failure Criteria**:
+- Direct time access
+- Ignoring provided timestamp
+
+---
+
+#### Test Category: Dependency & Coupling Detection
+
+**Purpose**: Preserve Utilities isolation
+
+**Test Specification**:
+- No imports from:
+  - User Management
+  - Authorization
+  - Error Handling
+  - Database modules
+  - External libraries
+- No network access
+- No file I/O
+- No logging
+
+**Failure Criteria**:
+- Any non-standard import
+- Any side-effectful operation
+
+---
+
+### 6.6 Collision Responsibility Tests
+
+#### Test Category: No Collision Handling
+
+**Purpose**: Preserve module boundaries  
+**Contract Protected**: Alias Generation Proposal §4
+
+**Test Specification**:
+- Function must NOT:
+  - Check database for collisions
+  - Retry alias generation
+  - Modify inputs to resolve collisions
+  - Append counters or suffixes
+- Collision handling is explicitly caller responsibility
+
+**Failure Criteria**:
+- Retry logic
+- Looping
+- Input mutation for collision avoidance
+
+---
+
+### 6.7 Error Surface Tests
+
+#### Test Category: Error Signaling
+
+**Purpose**: Define failure behavior  
+**Contract Protected**: Utilities error model
+
+**Test Specification**:
+- Invalid inputs must result in thrown errors
+- Utilities must NOT return ErrorEnvelope
+- Errors must indicate:
+  - Missing parameters
+  - Invalid parameter types
+  - Invalid parameter values
+- No silent failures
+
+**Failure Criteria**:
+- ErrorEnvelope returned
+- Silent coercion
+- Default behavior on invalid input
+
+---
+
+### 6.8 Format & Output Tests
+
+#### Test Category: Alias Output Constraints
+
+**Purpose**: Ensure usable, safe aliases
+
+**Test Specification**:
+- Output must be:
+  - Non-empty string
+  - ASCII-safe
+  - URL-safe
+  - Reasonable length (bounded)
+- Alias format must be stable and documented
+- Separators must be consistent
+
+**Failure Criteria**:
+- Empty string
+- Non-string output
+- Unbounded growth
+- Format instability
+
+---
+
+### 6.9 Safe Stopping & Scope Tests
+
+#### Test Category: Safe Stopping (Step 1b)
+
+**Purpose**: Architectural safety
+
+**Test Specification**:
+- Utilities extension:
+  - Creates no data
+  - Modifies no state
+  - Introduces no coupling
+- System can stop safely after this step
+
+**Failure Criteria**:
+- Side effects
+- Persistent state
+- Cross-module entanglement
+
+---
+
+### 6.10 Final Check
+
+#### Required Confirmations
+
+- ✅ Pure function only
+- ✅ Deterministic
+- ✅ Stateless
+- ✅ Non-identifying
+- ✅ No dependencies
+- ✅ No authority introduced
+- ✅ No invariants violated
+- ✅ Collision handling explicitly excluded
+- ✅ Error model consistent with Utilities
+
+---
+
+### 6.11 Status
+
+**STEP 1b — TEST SPECIFICATION**: ✅ **COMPLETE**
+
+The Utilities alias generation extension may proceed to implementation only if all tests defined here can be satisfied without exception.
+
+---
+
 **CURRENT MODULE STATUS**: **TEST SPECIFICATION DEFINED**
 
 **Utilities module test specification is defined and ready for test implementation.**
+**Step 1b extension (alias generation) test specification is complete.**
 
 ---
 

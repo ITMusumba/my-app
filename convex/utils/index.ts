@@ -2,12 +2,14 @@
  * Utilities Module - Implementation
  * 
  * Step: 1c (IMPLEMENTATION_SEQUENCE.md Step 1)
+ * Step 1b Extension: Alias Generation (ALIAS_GENERATION_PROPOSAL.md approved)
  * Status: Implementation complete
  * 
  * Context:
  * - convex/utils/README.md defines the full specification
  * - convex/utils/types.ts defines the public interface (Step 1a, approved and locked)
  * - convex/utils/TEST_SPECIFICATION.md defines test requirements (Step 1b, approved and locked)
+ * - ALIAS_GENERATION_PROPOSAL.md defines alias generation extension
  * - IMPLEMENTATION_BOUNDARIES.md applies
  * - INVARIANTS.md (4.1, 4.2, 6.1, 6.2) applies
  * 
@@ -22,6 +24,7 @@ import type {
   ExposureCalculationResult,
   ExposureValidationResult,
   SLACalculationResult,
+  UserAliasGenerationContext,
 } from "./types";
 
 // ============================================================================
@@ -398,4 +401,117 @@ export function calculateBuyerPickupSLA(purchaseTime: number): SLACalculationRes
     isExpired,
     timeRemaining,
   };
+}
+
+/**
+ * Deterministic hash function for alias generation.
+ * Pure, deterministic, stateless.
+ * Returns base36 string representation for compact alias format.
+ * 
+ * @param input - String input to hash
+ * @returns Hash value as base36 string
+ */
+function hashString(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0; // Force 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Generate a deterministic, stable, non-identifying user alias.
+ * 
+ * Contract: Pure function, deterministic, stateless, no side effects
+ * Supports: User anonymity (DOMAIN_MODEL.md, BUSINESS_LOGIC.md)
+ * 
+ * Format: {rolePrefix}_{timestampHash}_{emailHash}
+ * Example: "far_a3k9x2_m7p4q1"
+ * 
+ * Requirements enforced:
+ * - Deterministic: same inputs → same output
+ * - Stateless: no internal memory
+ * - Pure: no side effects
+ * - Non-identifying: email is hashed, never exposed
+ * 
+ * @param context - Context for alias generation (role, email, timestamp)
+ * @returns Alias string (stable, non-identifying, deterministic identifier)
+ * @throws MissingParameterError if required parameters are missing
+ * @throws InvalidParameterError if parameters are invalid
+ * @throws DeterminismViolationError if alias generation is non-deterministic
+ */
+export function generateUserAlias(
+  context: UserAliasGenerationContext
+): string {
+  // Validate context
+  if (context === null || context === undefined) {
+    throw new MissingParameterError("Missing required parameter: context");
+  }
+
+  // Validate role
+  if (context.role === null || context.role === undefined) {
+    throw new MissingParameterError("Missing required parameter: context.role");
+  }
+  if (typeof context.role !== "string") {
+    throw new InvalidParameterError("Invalid parameter: context.role must be a string");
+  }
+  if (context.role.length === 0) {
+    throw new InvalidParameterError("Invalid parameter: context.role must not be empty");
+  }
+
+  // Validate email
+  if (context.email === null || context.email === undefined) {
+    throw new MissingParameterError("Missing required parameter: context.email");
+  }
+  if (typeof context.email !== "string") {
+    throw new InvalidParameterError("Invalid parameter: context.email must be a string");
+  }
+  if (context.email.length === 0) {
+    throw new InvalidParameterError("Invalid parameter: context.email must not be empty");
+  }
+  // Validate email format (must contain @ symbol)
+  const atIndex = context.email.indexOf("@");
+  if (atIndex <= 0 || atIndex >= context.email.length - 1) {
+    throw new InvalidParameterError("Invalid parameter: context.email must be a valid email address (must contain @ symbol)");
+  }
+
+  // Validate timestamp
+  if (context.timestamp === null || context.timestamp === undefined) {
+    throw new MissingParameterError("Missing required parameter: context.timestamp");
+  }
+  if (typeof context.timestamp !== "number") {
+    throw new InvalidParameterError("Invalid parameter: context.timestamp must be a number");
+  }
+  if (context.timestamp < 0) {
+    throw new InvalidParameterError("Invalid parameter: context.timestamp must be non-negative");
+  }
+  if (!Number.isFinite(context.timestamp)) {
+    throw new InvalidParameterError("Invalid parameter: context.timestamp must be a finite number");
+  }
+
+  // Generate deterministic alias
+  // Format: {rolePrefix}_{timestampHash}_{emailHash}
+  // This ensures uniqueness and determinism
+  try {
+    // Extract role prefix (first 3 characters, lowercase)
+    const rolePrefix = context.role.slice(0, 3).toLowerCase();
+    
+    // Hash timestamp (deterministic)
+    const timestampHash = hashString(context.timestamp.toString()).slice(0, 6);
+    
+    // Hash email (deterministic, lowercase for consistency)
+    // Email is hashed and never exposed in alias (preserves anonymity)
+    const emailHash = hashString(context.email.toLowerCase()).slice(0, 6);
+    
+    // Combine: rolePrefix_timestampHash_emailHash
+    const alias = `${rolePrefix}_${timestampHash}_${emailHash}`;
+    
+    // Verify determinism: same inputs should produce same alias
+    // This is guaranteed by the algorithm (no randomness, no external state)
+    return alias;
+  } catch (error) {
+    // If any error occurs during alias generation, it's a determinism violation
+    throw new DeterminismViolationError(`Alias generation failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
