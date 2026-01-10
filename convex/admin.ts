@@ -1332,14 +1332,14 @@ export const updateAllTradersSpendCap = mutation({
       errors: [] as string[],
     };
 
-    const newSpendCap = args.spendCap ?? null; // null means reset to default
+    const newSpendCap = args.spendCap; // undefined means reset to default
 
     for (const trader of traders) {
       try {
         const previousSpendCap = trader.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
 
         await ctx.db.patch(trader._id, {
-          customSpendCap: newSpendCap,
+          customSpendCap: newSpendCap, // undefined will reset to default
         });
 
         results.updated.push(trader._id);
