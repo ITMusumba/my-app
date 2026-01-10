@@ -119,25 +119,25 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
             <div style={{ padding: "1rem", background: "#ffebee", borderRadius: "8px", border: "1px solid #ef5350" }}>
               <div style={{ fontSize: "2rem", fontWeight: "600", color: "#c62828" }}>
-                {redFlags.deliveriesPastSLA || 0}
+                {redFlags?.deliveriesPastSLA || 0}
               </div>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>Deliveries Past SLA</div>
             </div>
             <div style={{ padding: "1rem", background: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
               <div style={{ fontSize: "2rem", fontWeight: "600", color: "#856404" }}>
-                {redFlags.tradersNearSpendCap || 0}
+                {redFlags?.tradersNearSpendCap || 0}
               </div>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>Traders Near Cap</div>
             </div>
             <div style={{ padding: "1rem", background: "#e3f2fd", borderRadius: "8px", border: "1px solid #2196f3" }}>
               <div style={{ fontSize: "2rem", fontWeight: "600", color: "#1565c0" }}>
-                {redFlags.highStorageLossInventory || 0}
+                {redFlags?.highStorageLossInventory || 0}
               </div>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>High Storage Loss</div>
             </div>
             <div style={{ padding: "1rem", background: "#f3e5f5", borderRadius: "8px", border: "1px solid #9c27b0" }}>
               <div style={{ fontSize: "2rem", fontWeight: "600", color: "#6a1b9a" }}>
-                {redFlags.buyersApproachingPickupSLA || 0}
+                {redFlags?.buyersApproachingPickupSLA || 0}
               </div>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>Buyers Near Pickup SLA</div>
             </div>
@@ -167,6 +167,8 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         </h3>
         {todayMetrics === undefined ? (
           <p style={{ color: "#999" }}>Loading metrics...</p>
+        ) : !todayMetrics ? (
+          <p style={{ color: "#666" }}>No metrics available</p>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1rem" }}>
             {/* Open Listings */}
@@ -175,16 +177,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
                 Open Listings
               </div>
               <div style={{ fontSize: "2rem", fontWeight: "700", color: "#1565c0", marginBottom: "0.25rem" }}>
-                {todayMetrics.open.count}
+                {todayMetrics?.open?.count || 0}
               </div>
               <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                {todayMetrics.open.uniqueUTIDs} unique UTID(s)
+                {todayMetrics?.open?.uniqueUTIDs || 0} unique UTID(s)
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
-                <strong>{todayMetrics.open.totalKilos.toFixed(2)} kg</strong>
+                <strong>{(todayMetrics?.open?.totalKilos || 0).toFixed(2)} kg</strong>
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242" }}>
-                <strong>UGX {todayMetrics.open.totalMoney.toLocaleString()}</strong>
+                <strong>UGX {(todayMetrics?.open?.totalMoney || 0).toLocaleString()}</strong>
               </div>
             </div>
 
@@ -194,16 +196,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
                 Locked Listings
               </div>
               <div style={{ fontSize: "2rem", fontWeight: "700", color: "#e65100", marginBottom: "0.25rem" }}>
-                {todayMetrics.locked.count}
+                {todayMetrics?.locked?.count || 0}
               </div>
               <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                {todayMetrics.locked.uniqueUTIDs} unique UTID(s)
+                {todayMetrics?.locked?.uniqueUTIDs || 0} unique UTID(s)
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
-                <strong>{todayMetrics.locked.totalKilos.toFixed(2)} kg</strong>
+                <strong>{(todayMetrics?.locked?.totalKilos || 0).toFixed(2)} kg</strong>
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242" }}>
-                <strong>UGX {todayMetrics.locked.totalMoney.toLocaleString()}</strong>
+                <strong>UGX {(todayMetrics?.locked?.totalMoney || 0).toLocaleString()}</strong>
               </div>
             </div>
 
@@ -213,16 +215,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
                 Delivered Listings
               </div>
               <div style={{ fontSize: "2rem", fontWeight: "700", color: "#1b5e20", marginBottom: "0.25rem" }}>
-                {todayMetrics.delivered.count}
+                {todayMetrics?.delivered?.count || 0}
               </div>
               <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                {todayMetrics.delivered.uniqueUTIDs} unique UTID(s)
+                {todayMetrics?.delivered?.uniqueUTIDs || 0} unique UTID(s)
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
-                <strong>{todayMetrics.delivered.totalKilos.toFixed(2)} kg</strong>
+                <strong>{(todayMetrics?.delivered?.totalKilos || 0).toFixed(2)} kg</strong>
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242" }}>
-                <strong>UGX {todayMetrics.delivered.totalMoney.toLocaleString()}</strong>
+                <strong>UGX {(todayMetrics?.delivered?.totalMoney || 0).toLocaleString()}</strong>
               </div>
             </div>
 
@@ -232,16 +234,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
                 Collectable Listings
               </div>
               <div style={{ fontSize: "2rem", fontWeight: "700", color: "#4a148c", marginBottom: "0.25rem" }}>
-                {todayMetrics.collectable.count}
+                {todayMetrics?.collectable?.count || 0}
               </div>
               <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                {todayMetrics.collectable.uniqueUTIDs} unique UTID(s)
+                {todayMetrics?.collectable?.uniqueUTIDs || 0} unique UTID(s)
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
-                <strong>{todayMetrics.collectable.totalKilos.toFixed(2)} kg</strong>
+                <strong>{(todayMetrics?.collectable?.totalKilos || 0).toFixed(2)} kg</strong>
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242" }}>
-                <strong>UGX {todayMetrics.collectable.totalMoney.toLocaleString()}</strong>
+                <strong>UGX {(todayMetrics?.collectable?.totalMoney || 0).toLocaleString()}</strong>
               </div>
             </div>
 
@@ -251,21 +253,21 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
                 Picked Up Listings
               </div>
               <div style={{ fontSize: "2rem", fontWeight: "700", color: "#004d40", marginBottom: "0.25rem" }}>
-                {todayMetrics.pickedUp.count}
+                {todayMetrics?.pickedUp?.count || 0}
               </div>
               <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
-                {todayMetrics.pickedUp.uniqueUTIDs} unique UTID(s)
+                {todayMetrics?.pickedUp?.uniqueUTIDs || 0} unique UTID(s)
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242", marginBottom: "0.25rem" }}>
-                <strong>{todayMetrics.pickedUp.totalKilos.toFixed(2)} kg</strong>
+                <strong>{(todayMetrics?.pickedUp?.totalKilos || 0).toFixed(2)} kg</strong>
               </div>
               <div style={{ fontSize: "0.9rem", color: "#424242" }}>
-                <strong>UGX {todayMetrics.pickedUp.totalMoney.toLocaleString()}</strong>
+                <strong>UGX {(todayMetrics?.pickedUp?.totalMoney || 0).toLocaleString()}</strong>
               </div>
             </div>
           </div>
         )}
-        {todayMetrics && (
+        {todayMetrics && todayMetrics.date && (
           <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f5f5f5", borderRadius: "6px", fontSize: "0.85rem", color: "#666" }}>
             📅 Date: {todayMetrics.date.today} ({todayMetrics.date.timezone}) | Current Time: {new Date(todayMetrics.date.currentTime).toLocaleString("en-US", { timeZone: "Africa/Kampala", dateStyle: "short", timeStyle: "medium" })}
           </div>
@@ -294,10 +296,12 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         </h3>
         {allUTIDs === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
+        ) : !allUTIDs || !allUTIDs.utids ? (
+          <p style={{ color: "#666" }}>No UTIDs available</p>
         ) : (
           <div>
             <p style={{ color: "#666" }}>
-              Total active UTIDs: <strong>{allUTIDs.totalUTIDs}</strong>
+              Total active UTIDs: <strong>{allUTIDs.totalUTIDs || 0}</strong>
             </p>
             <div style={{ marginTop: "1rem", maxHeight: "400px", overflowY: "auto" }}>
               {allUTIDs.utids.slice(0, 20).map((utidData: any, index: number) => (
@@ -562,7 +566,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         </h3>
         {allUTIDs === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
-        ) : allUTIDs.utids.length === 0 ? (
+        ) : !allUTIDs || !allUTIDs.utids || allUTIDs.utids.length === 0 ? (
           <p style={{ color: "#666" }}>No recent activity</p>
         ) : (
           <div style={{ maxHeight: "300px", overflowY: "auto" }}>
