@@ -7,7 +7,7 @@
 
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 
 /**
  * Create all pilot test users at once
@@ -76,8 +76,8 @@ export const createPilotUsers = mutation({
           role: userData.role,
           alias,
           state: "active", // Initial state for new users
-          createdAt: Date.now(),
-          lastActiveAt: Date.now(),
+          createdAt: getUgandaTime(),
+          lastActiveAt: getUgandaTime(),
           passwordHash,
         });
 

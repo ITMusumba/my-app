@@ -12,17 +12,36 @@ import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY, DEFAULT_B
 import { Id } from "./_generated/dataModel";
 
 /**
+ * Get current time in Uganda timezone (UTC+3)
+ * All database timestamps should use this function to store Uganda time
+ * 
+ * @returns Timestamp in milliseconds (UTC time + 3 hours)
+ */
+export function getUgandaTime(): number {
+  const ugandaOffset = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+  return Date.now() + ugandaOffset;
+}
+
+/**
  * Generate a human-readable UTID (Unique Transaction ID)
  * Format: YYYYMMDD-HHMMSS-ROLE-RANDOM
  * Example: 20240315-143022-trader-a3k9x2
+ * Uses Uganda time for date/time components
  */
 export function generateUTID(role: string): string {
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, "");
+  const now = getUgandaTime();
+  const date = new Date(now);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+  const dateStr = `${year}${month}${day}`;
+  const timeStr = `${hours}${minutes}${seconds}`;
   const rolePrefix = role.substring(0, 3);
   const random = Math.random().toString(36).substring(2, 8);
-  return `${date}-${time}-${rolePrefix}-${random}`;
+  return `${dateStr}-${timeStr}-${rolePrefix}-${random}`;
 }
 
 /**

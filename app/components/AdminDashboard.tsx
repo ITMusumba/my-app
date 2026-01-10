@@ -3,6 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { formatUgandaDateTime, formatUgandaTimeOnly, getUgandaTime } from "../utils/timeUtils";
 import { useState } from "react";
 import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
 
@@ -53,7 +54,8 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
     }
 
     const formattedData = formatUTIDDataForExport(allUTIDs.utids);
-    const filename = `admin_all_utid_report_${new Date().toISOString().split("T")[0]}`;
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000); // Convert back to UTC for ISO string
+    const filename = `admin_all_utid_report_${ugandaDate.toISOString().split("T")[0]}`;
 
     if (format === "excel") {
       exportToExcel(formattedData, filename, "Admin");
@@ -359,7 +361,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
               </div>
               {purchaseWindowStatus.isOpen && purchaseWindowStatus.openedAt && (
                 <p style={{ color: "#666", fontSize: "0.9rem", margin: 0 }}>
-                  Opened at: {new Date(purchaseWindowStatus.openedAt).toLocaleString()}
+                  Opened at: {formatUgandaDateTime(purchaseWindowStatus.openedAt)}
                 </p>
               )}
             </div>
@@ -559,8 +561,9 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         ) : (
           <div style={{ maxHeight: "300px", overflowY: "auto" }}>
             {allUTIDs.utids.slice(0, 10).map((utidData: any, index: number) => {
-              const timestamp = utidData.timestamp || Date.now();
-              const time = new Date(timestamp).toLocaleTimeString();
+              const { formatUgandaTimeOnly, getUgandaTime } = require("../utils/timeUtils");
+              const timestamp = utidData.timestamp || getUgandaTime();
+              const time = formatUgandaTimeOnly(timestamp);
               let activity = "";
               if (utidData.type === "unit_lock") activity = `${utidData.quantity || "10"}kg ${utidData.produceType || "Produce"} Locked`;
               else if (utidData.type === "buyer_purchase") activity = "Buyer Purchase Completed";
@@ -639,7 +642,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
               )}
               {pilotMode.setAt && (
                 <p style={{ color: "#666", fontSize: "0.85rem", margin: "0.25rem 0 0 0" }}>
-                  Last changed: {new Date(pilotMode.setAt).toLocaleString()}
+                  Last changed: {formatUgandaDateTime(pilotMode.setAt)}
                 </p>
               )}
             </div>

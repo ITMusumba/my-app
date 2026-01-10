@@ -11,7 +11,7 @@
 import { v } from "convex/values";
 import { action, internalAction, mutation, internalMutation, query, internalQuery } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { checkPilotMode } from "./pilotMode";
 
 // Pesapal API Configuration
@@ -197,7 +197,7 @@ export const createPaymentTransaction = internalMutation({
       redirectUrl: args.redirectUrl,
       callbackUrl: args.callbackUrl,
       status: "pending",
-      createdAt: Date.now(),
+      createdAt: getUgandaTime(),
     });
 
     return transactionId;
@@ -316,7 +316,7 @@ export const completePaymentTransaction = internalMutation({
       type: "capital_deposit",
       amount: transaction.amount,
       balanceAfter,
-      timestamp: Date.now(),
+      timestamp: getUgandaTime(),
       metadata: {
         source: "pesapal_payment",
         pesapalOrderTrackingId: args.orderTrackingId,

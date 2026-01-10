@@ -34,7 +34,8 @@ export function TraderListings({ userId }: TraderListingsProps) {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    // Timestamps are stored in Uganda time, convert for display
+    return formatUgandaDateTime(timestamp);
   };
 
   const handleMakeOffer = async (listingId: Id<"listings">) => {

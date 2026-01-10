@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
 import {
@@ -92,9 +92,9 @@ export const makeOffer = mutation({
       farmerPricePerKilo: listing.pricePerKilo,
       traderOfferPricePerKilo: args.offerPricePerKilo,
       currentPricePerKilo: args.offerPricePerKilo, // Start with trader's offer
-      createdAt: Date.now(),
-      lastUpdatedAt: Date.now(),
-      expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours expiration
+      createdAt: getUgandaTime(),
+      lastUpdatedAt: getUgandaTime(),
+      expiresAt: getUgandaTime() + (24 * 60 * 60 * 1000), // 24 hours expiration
       negotiationUtid,
     });
 
@@ -154,7 +154,7 @@ export const acceptOffer = mutation({
     await ctx.db.patch(args.negotiationId, {
       status: "accepted",
       acceptedUtid,
-      lastUpdatedAt: Date.now(),
+      lastUpdatedAt: getUgandaTime(),
     });
 
     return {
@@ -202,7 +202,7 @@ export const rejectOffer = mutation({
     // Update negotiation to rejected
     await ctx.db.patch(args.negotiationId, {
       status: "rejected",
-      lastUpdatedAt: Date.now(),
+      lastUpdatedAt: getUgandaTime(),
     });
 
     // Clear active negotiation from unit
@@ -262,7 +262,7 @@ export const counterOffer = mutation({
     await ctx.db.patch(args.negotiationId, {
       status: "countered",
       currentPricePerKilo: args.counterPricePerKilo,
-      lastUpdatedAt: Date.now(),
+      lastUpdatedAt: getUgandaTime(),
     });
 
     return {
@@ -315,7 +315,7 @@ export const acceptCounterOffer = mutation({
     await ctx.db.patch(args.negotiationId, {
       status: "accepted",
       acceptedUtid,
-      lastUpdatedAt: Date.now(),
+      lastUpdatedAt: getUgandaTime(),
     });
 
     return {

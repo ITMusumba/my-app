@@ -7,6 +7,7 @@
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatUgandaDate, formatUgandaTimeOnly, formatUgandaDateTime, getUgandaTime } from "./timeUtils";
 
 export interface UTIDReportData {
   utid: string;
@@ -27,12 +28,11 @@ export function exportToExcel(
 ): void {
   // Prepare worksheet data
   const worksheetData = data.map((item) => {
-    const date = new Date(item.timestamp);
     return {
       UTID: item.utid,
       Type: item.type,
-      Date: date.toLocaleDateString(),
-      Time: date.toLocaleTimeString(),
+      Date: formatUgandaDate(item.timestamp),
+      Time: formatUgandaTimeOnly(item.timestamp),
       Status: item.status || "N/A",
       Details: JSON.stringify(item.details || {}),
     };
@@ -58,7 +58,7 @@ export function exportToExcel(
   const summaryData = [
     { Metric: "Total UTIDs", Value: data.length },
     { Metric: "Role", Value: role },
-    { Metric: "Generated", Value: new Date().toLocaleString() },
+    { Metric: "Generated", Value: formatUgandaDateTime(getUgandaTime()) },
   ];
   const summarySheet = XLSX.utils.json_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
@@ -90,17 +90,16 @@ export function exportToPDF(
   if (userAlias) {
     doc.text(`User: ${userAlias}`, pageWidth / 2, 37, { align: "center" });
   }
-  doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 44, { align: "center" });
+  doc.text(`Generated: ${formatUgandaDateTime(getUgandaTime())}`, pageWidth / 2, 44, { align: "center" });
   doc.text(`Total UTIDs: ${data.length}`, pageWidth / 2, 51, { align: "center" });
 
   // Prepare table data
   const tableData = data.map((item) => {
-    const date = new Date(item.timestamp);
     return [
       item.utid,
       item.type,
-      date.toLocaleDateString(),
-      date.toLocaleTimeString(),
+      formatUgandaDate(item.timestamp),
+      formatUgandaTimeOnly(item.timestamp),
       item.status || "N/A",
     ];
   });
@@ -126,7 +125,7 @@ export function formatUTIDDataForExport(utids: any[]): UTIDReportData[] {
   return utids.map((utid) => ({
     utid: utid.utid || utid.purchaseUtid || utid.listingUtid || utid.lockUtid || "N/A",
     type: utid.type || "unknown",
-    timestamp: utid.timestamp || utid.purchasedAt || utid.createdAt || utid.lockedAt || Date.now(),
+    timestamp: utid.timestamp || utid.purchasedAt || utid.createdAt || utid.lockedAt || getUgandaTime(),
     status: utid.status || utid.deliveryStatus || "N/A",
     details: {
       ...utid,

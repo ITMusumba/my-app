@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { TraderListings } from "./TraderListings";
@@ -19,6 +19,10 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
   const storageFeeRate = useQuery(api.traderDashboard.getTraderStorageFeeRate, { traderId: userId });
   const initiateDeposit = useAction(api.pesapal.initiateTraderDeposit);
   const paymentTransactions = useQuery(api.pesapal.getUserPaymentTransactions, { userId });
+  const buyOffers = useQuery(api.traderBuyerNegotiations.getTraderBuyOffers, { traderId: userId });
+  const acceptBuyerOffer = useMutation(api.traderBuyerNegotiations.acceptBuyerOffer);
+  const rejectBuyerOffer = useMutation(api.traderBuyerNegotiations.rejectBuyerOffer);
+  const counterBuyerOffer = useMutation(api.traderBuyerNegotiations.counterBuyerOffer);
 
   const [depositAmount, setDepositAmount] = useState<string>("");
   const [isDepositing, setIsDepositing] = useState(false);
@@ -75,7 +79,8 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
     }
 
     const formattedData = formatUTIDDataForExport(activeUTIDs.utids);
-    const filename = `trader_utid_report_${new Date().toISOString().split("T")[0]}`;
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000); // Convert back to UTC for ISO string
+    const filename = `trader_utid_report_${ugandaDate.toISOString().split("T")[0]}`;
 
     if (format === "excel") {
       exportToExcel(formattedData, filename, "Trader");
@@ -84,20 +89,36 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
     }
   };
 
-  // Calculate inventory percentage for simple view
-  const inventoryPercentage = inventory && inventory.inventory.length > 0
-    ? Math.min(100, (inventory.inventory.reduce((sum: number, inv: any) => sum + inv.totalKilos, 0) / 1000) * 100)
+  // Calculate wallet investment percentage for simple view
+  const capitalInvestedPercentage = ledger && exposure
+    ? Math.min(100, (exposure.exposure.lockedCapital / Math.max(ledger.capital.balance, 1)) * 100)
     : 0;
 
-  // Calculate activity stats for simple view
-  const lockedToday = activeUTIDs?.utids.filter((utid: any) => {
+  // Get open listings (from farmers)
+  const openListings = useQuery(api.listings.getActiveListings);
+
+  // Calculate today's activity with UTIDs and status
+  const todayActivity = activeUTIDs?.utids.filter((utid: any) => {
     const today = Date.now();
     const dayStart = today - (today % (24 * 60 * 60 * 1000));
-    return utid.timestamp && utid.timestamp >= dayStart && utid.type === "unit_lock";
-  }).length || 0;
-  
-  const inStorageKilos = inventory?.inventory.reduce((sum: number, inv: any) => sum + inv.totalKilos, 0) || 0;
-  const soldKilos = 0; // This would need to come from a query - placeholder for now
+    return utid.timestamp && utid.timestamp >= dayStart;
+  }).map((utid: any) => {
+    // Determine status: Confirmed or Pending Acceptance/Rejection
+    let activityStatus = "Confirmed";
+    if (utid.type === "unit_lock" && utid.status === "pending") {
+      activityStatus = "Pending Delivery";
+    } else if (utid.type === "negotiation") {
+      if (utid.status === "pending" || utid.status === "countered") {
+        activityStatus = "Pending Acceptance/Rejection";
+      } else {
+        activityStatus = "Confirmed";
+      }
+    }
+    return {
+      ...utid,
+      activityStatus
+    };
+  }) || [];
 
   return (
     <div style={{ padding: "1rem", maxWidth: "100%", boxSizing: "border-box" }}>
@@ -141,7 +162,7 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
       {!proView ? (
         /* Simple View (Default) */
         <>
-          {/* Inventory Percentage */}
+          {/* Wallet Investment Percentage */}
           <div style={{
             marginBottom: "1.5rem",
             padding: "clamp(1rem, 3vw, 1.5rem)",
@@ -151,7 +172,7 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
             border: "1px solid #e0e0e0"
           }}>
             <div style={{ marginBottom: "0.5rem", fontSize: "clamp(0.9rem, 2.5vw, 1rem)", color: "#666" }}>
-              Inventory: {inventoryPercentage.toFixed(0)}%
+              Capital Invested: {ledger ? formatUGX(exposure?.exposure.lockedCapital || 0) : "Loading..."} ({capitalInvestedPercentage.toFixed(1)}%)
             </div>
             <div style={{
               width: "100%",
@@ -161,15 +182,20 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
               overflow: "hidden"
             }}>
               <div style={{
-                width: `${inventoryPercentage}%`,
+                width: `${capitalInvestedPercentage}%`,
                 height: "100%",
-                background: "#4caf50",
+                background: "#1976d2",
                 transition: "width 0.3s"
               }} />
             </div>
+            {ledger && (
+              <div style={{ marginTop: "0.5rem", fontSize: "clamp(0.8rem, 2vw, 0.85rem)", color: "#999" }}>
+                Total Capital: {formatUGX(ledger.capital.balance)} | Available: {formatUGX(ledger.capital.available)}
+              </div>
+            )}
           </div>
 
-          {/* Available Units */}
+          {/* Open Listings */}
           <div style={{
             marginBottom: "1.5rem",
             padding: "clamp(1rem, 3vw, 1.5rem)",
@@ -187,42 +213,341 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
               fontWeight: "600",
               letterSpacing: "-0.01em"
             }}>
-              Available Units
+              Open Listings
             </h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
-              {inventory && inventory.inventory.length > 0 ? (
-                inventory.inventory.slice(0, 5).map((inv: any, idx: number) => (
+            {openListings === undefined ? (
+              <p style={{ color: "#999" }}>Loading listings...</p>
+            ) : openListings.length === 0 ? (
+              <p style={{ color: "#666" }}>No open listings available</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {openListings.slice(0, 5).map((listing: any, idx: number) => (
                   <div key={idx} style={{
                     padding: "0.75rem",
                     background: "#f5f5f5",
                     borderRadius: "8px",
                     fontSize: "0.9rem"
                   }}>
-                    {inv.produceType} {inv.totalKilos}kg
+                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                      {listing.produceType} - {listing.totalKilos}kg
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "#666", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      UTID: {listing.utid}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "#999", marginTop: "0.25rem" }}>
+                      {listing.availableUnits} units available | {listing.farmerAlias}
+                    </div>
                   </div>
-                ))
-              ) : (
-                <p style={{ color: "#666" }}>No inventory available</p>
-              )}
-            </div>
-            <button
-              style={{
-                padding: "0.75rem 1.5rem",
-                background: "#1976d2",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "600"
-              }}
-            >
-              LOCK UNIT
-            </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Activity Summary */}
+          {/* Your Activity Today */}
           <div style={{
+            padding: "clamp(1rem, 3vw, 1.5rem)",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            border: "1px solid #e0e0e0",
+            marginBottom: "1.5rem"
+          }}>
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: "1rem", 
+              fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+              color: "#2c2c2c",
+              fontFamily: '"Montserrat", sans-serif',
+              fontWeight: "600",
+              letterSpacing: "-0.01em"
+            }}>
+              Your Activity Today
+            </h3>
+            {todayActivity.length === 0 ? (
+              <p style={{ color: "#666" }}>No activity today</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {todayActivity.map((utid: any, idx: number) => (
+                  <div key={idx} style={{
+                    padding: "0.75rem",
+                    background: "#f5f5f5",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+                      <div style={{ fontFamily: "monospace", wordBreak: "break-all", fontSize: "0.8rem" }}>
+                        {utid.utid}
+                      </div>
+                      <div style={{
+                        padding: "0.25rem 0.5rem",
+                        background: utid.activityStatus === "Confirmed" ? "#d4edda" : "#fff3cd",
+                        color: utid.activityStatus === "Confirmed" ? "#155724" : "#856404",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: "600"
+                      }}>
+                        {utid.activityStatus}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                      Type: {utid.type} | {utid.state || utid.status || "Active"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Buy-Offers from Buyers */}
+          <div style={{
+            padding: "clamp(1rem, 3vw, 1.5rem)",
+            background: "#fff",
+            borderRadius: "12px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            border: "1px solid #e0e0e0",
+            marginBottom: "1.5rem"
+          }}>
+            <h3 style={{ 
+              marginTop: 0, 
+              marginBottom: "1rem", 
+              fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+              color: "#2c2c2c",
+              fontFamily: '"Montserrat", sans-serif',
+              fontWeight: "600",
+              letterSpacing: "-0.01em"
+            }}>
+              Buy-Offers from Buyers
+            </h3>
+            {buyOffers === undefined ? (
+              <p style={{ color: "#999" }}>Loading buy-offers...</p>
+            ) : buyOffers.negotiations.length === 0 ? (
+              <p style={{ color: "#666" }}>No buy-offers from buyers</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {buyOffers.negotiations.map((offer: any) => {
+                  const offerId = offer.negotiationId;
+                  const counterPrice = counterPrices[offerId] || "";
+                  const isProcessing = processingOffers[offerId] || false;
+                  const message = offerMessages[offerId] || null;
+
+                  const handleAccept = async () => {
+                    setProcessingOffers({ ...processingOffers, [offerId]: true });
+                    const newMessages = { ...offerMessages };
+                    delete newMessages[offerId];
+                    setOfferMessages(newMessages);
+                    try {
+                      await acceptBuyerOffer({
+                        traderId: userId,
+                        negotiationId: offer.negotiationId,
+                      });
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "success", text: "Offer accepted successfully!" } });
+                    } catch (error: any) {
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "error", text: `Failed to accept: ${error.message}` } });
+                    } finally {
+                      setProcessingOffers({ ...processingOffers, [offerId]: false });
+                    }
+                  };
+
+                  const handleReject = async () => {
+                    setProcessingOffers({ ...processingOffers, [offerId]: true });
+                    const newMessages = { ...offerMessages };
+                    delete newMessages[offerId];
+                    setOfferMessages(newMessages);
+                    try {
+                      await rejectBuyerOffer({
+                        traderId: userId,
+                        negotiationId: offer.negotiationId,
+                      });
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "success", text: "Offer rejected." } });
+                    } catch (error: any) {
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "error", text: `Failed to reject: ${error.message}` } });
+                    } finally {
+                      setProcessingOffers({ ...processingOffers, [offerId]: false });
+                    }
+                  };
+
+                  const handleCounter = async () => {
+                    const price = parseFloat(counterPrice);
+                    if (isNaN(price) || price <= 0) {
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "error", text: "Please enter a valid price" } });
+                      return;
+                    }
+                    setProcessingOffers({ ...processingOffers, [offerId]: true });
+                    const newMessages = { ...offerMessages };
+                    delete newMessages[offerId];
+                    setOfferMessages(newMessages);
+                    try {
+                      await counterBuyerOffer({
+                        traderId: userId,
+                        negotiationId: offer.negotiationId,
+                        counterPricePerKilo: price,
+                      });
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "success", text: "Counter-offer made successfully!" } });
+                      setCounterPrices({ ...counterPrices, [offerId]: "" });
+                    } catch (error: any) {
+                      setOfferMessages({ ...offerMessages, [offerId]: { type: "error", text: `Failed to counter: ${error.message}` } });
+                    } finally {
+                      setProcessingOffers({ ...processingOffers, [offerId]: false });
+                    }
+                  };
+
+                  return (
+                    <div key={offer.negotiationId} style={{
+                      padding: "1rem",
+                      background: offer.status === "countered" ? "#fff3cd" : "#f5f5f5",
+                      borderRadius: "8px",
+                      border: offer.status === "countered" ? "2px solid #ffc107" : "1px solid #e0e0e0"
+                    }}>
+                      {message && (
+                        <div style={{
+                          padding: "0.5rem",
+                          marginBottom: "0.5rem",
+                          background: message.type === "success" ? "#d4edda" : "#f8d7da",
+                          color: message.type === "success" ? "#155724" : "#721c24",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem"
+                        }}>
+                          {message.text}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <div style={{ fontWeight: "600", marginBottom: "0.25rem", fontSize: "1rem" }}>
+                          {offer.produceType} - {offer.kilos}kg
+                        </div>
+                        <div style={{ fontSize: "0.85rem", color: "#666", fontFamily: "monospace", wordBreak: "break-all", marginBottom: "0.25rem" }}>
+                          UTID: {offer.negotiationUtid}
+                        </div>
+                        <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                          Buyer: {offer.buyerAlias || "Unknown"}
+                        </div>
+                      </div>
+                      <div style={{ 
+                        display: "grid", 
+                        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                        gap: "0.5rem",
+                        marginBottom: "0.75rem",
+                        fontSize: "0.85rem"
+                      }}>
+                        <div>
+                          <div style={{ color: "#999" }}>Buyer Offer</div>
+                          <div style={{ fontWeight: "600", color: "#1976d2" }}>
+                            {formatUGX(offer.buyerOfferPricePerKilo)}/kg
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: "#999" }}>Current Price</div>
+                          <div style={{ fontWeight: "600", color: "#1a1a1a" }}>
+                            {formatUGX(offer.currentPricePerKilo)}/kg
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ color: "#999" }}>Total Value</div>
+                          <div style={{ fontWeight: "600", color: "#2e7d32" }}>
+                            {formatUGX(offer.currentPricePerKilo * offer.kilos)}
+                          </div>
+                        </div>
+                      </div>
+                      {offer.status === "pending" && (
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <button
+                            onClick={handleAccept}
+                            disabled={isProcessing}
+                            style={{
+                              padding: "0.5rem 1rem",
+                              background: isProcessing ? "#ccc" : "#28a745",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: isProcessing ? "not-allowed" : "pointer",
+                              fontSize: "0.85rem",
+                              fontWeight: "600"
+                            }}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={handleReject}
+                            disabled={isProcessing}
+                            style={{
+                              padding: "0.5rem 1rem",
+                              background: isProcessing ? "#ccc" : "#dc3545",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "6px",
+                              cursor: isProcessing ? "not-allowed" : "pointer",
+                              fontSize: "0.85rem",
+                              fontWeight: "600"
+                            }}
+                          >
+                            Reject
+                          </button>
+                          <div style={{ display: "flex", gap: "0.5rem", flex: 1, minWidth: "200px" }}>
+                            <input
+                              type="number"
+                              value={counterPrice}
+                              onChange={(e) => setCounterPrices({ ...counterPrices, [offerId]: e.target.value })}
+                              placeholder="Counter price/kg"
+                              disabled={isProcessing}
+                              style={{
+                                padding: "0.5rem",
+                                flex: 1,
+                                border: "1px solid #ccc",
+                                borderRadius: "6px",
+                                fontSize: "0.85rem"
+                              }}
+                            />
+                            <button
+                              onClick={handleCounter}
+                              disabled={isProcessing || !counterPrice}
+                              style={{
+                                padding: "0.5rem 1rem",
+                                background: isProcessing || !counterPrice ? "#ccc" : "#ff9800",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: isProcessing || !counterPrice ? "not-allowed" : "pointer",
+                                fontSize: "0.85rem",
+                                fontWeight: "600"
+                              }}
+                            >
+                              Counter
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {offer.status === "countered" && (
+                        <div style={{
+                          padding: "0.5rem",
+                          background: "#fff",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem",
+                          color: "#856404"
+                        }}>
+                          ⚠️ Waiting for buyer to respond to your counter-offer
+                        </div>
+                      )}
+                      {offer.status === "accepted" && (
+                        <div style={{
+                          padding: "0.5rem",
+                          background: "#d4edda",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem",
+                          color: "#155724",
+                          fontWeight: "600"
+                        }}>
+                          ✓ Accepted - Buyer can now purchase
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Deposit Funds Section - Simple View */}
+          <div style={{
+            marginBottom: "1.5rem",
             padding: "clamp(1rem, 3vw, 1.5rem)",
             background: "#fff",
             borderRadius: "12px",
@@ -238,28 +563,90 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
               fontWeight: "600",
               letterSpacing: "-0.01em"
             }}>
-              Your Activity
+              💰 Deposit Funds via Pesapal
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div>
-                <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#1976d2" }}>
-                  {lockedToday}
-                </div>
-                <div style={{ color: "#666", fontSize: "0.9rem" }}>Locked Today</div>
+                <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
+                  Amount (UGX)
+                </label>
+                <input
+                  type="number"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  min="1"
+                  step="1"
+                  disabled={isDepositing}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    fontSize: "1rem",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    boxSizing: "border-box"
+                  }}
+                />
               </div>
-              <div>
-                <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#2e7d32" }}>
-                  {inStorageKilos.toFixed(0)}kg
+              <button
+                onClick={handleDeposit}
+                disabled={isDepositing || !depositAmount}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  background: isDepositing || !depositAmount ? "#ccc" : "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: isDepositing || !depositAmount ? "not-allowed" : "pointer",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  transition: "background 0.2s"
+                }}
+              >
+                {isDepositing ? "Processing..." : "💳 Deposit via Pesapal"}
+              </button>
+              {depositMessage && (
+                <div style={{
+                  padding: "0.75rem",
+                  borderRadius: "6px",
+                  background: depositMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                  color: depositMessage.type === "success" ? "#2e7d32" : "#d32f2f",
+                  fontSize: "0.9rem"
+                }}>
+                  {depositMessage.text}
                 </div>
-                <div style={{ color: "#666", fontSize: "0.9rem" }}>In Storage</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#1a1a1a" }}>
-                  {soldKilos.toFixed(0)}kg
-                </div>
-                <div style={{ color: "#666", fontSize: "0.9rem" }}>Sold</div>
-              </div>
+              )}
             </div>
+            {paymentTransactions && paymentTransactions.length > 0 && (
+              <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #e0e0e0" }}>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>Recent Deposits</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {paymentTransactions.slice(0, 3).map((tx: any) => (
+                    <div key={tx.transactionId} style={{
+                      padding: "0.5rem",
+                      background: "#f9f9f9",
+                      borderRadius: "6px",
+                      fontSize: "0.85rem"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+                        <span style={{ fontWeight: "600" }}>{formatUGX(tx.amount)}</span>
+                        <span style={{
+                          color: tx.status === "completed" ? "#2e7d32" : tx.status === "pending" ? "#ff9800" : "#d32f2f",
+                          textTransform: "capitalize"
+                        }}>
+                          {tx.status}
+                        </span>
+                      </div>
+                      {tx.walletDepositUtid && (
+                        <div style={{ fontSize: "0.75rem", color: "#999", fontFamily: "monospace" }}>
+                          UTID: {tx.walletDepositUtid}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       ) : (

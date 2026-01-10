@@ -5,6 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
 import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
+import { formatUgandaDateTime, getUgandaTime } from "../utils/timeUtils";
 
 interface BuyerDashboardProps {
   userId: Id<"users">;
@@ -71,11 +72,12 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    // Timestamps are stored in Uganda time, convert for display
+    return formatUgandaDateTime(timestamp);
   };
 
   const formatTimeRemaining = (deadline: number) => {
-    const now = Date.now();
+    const now = getUgandaTime();
     const diff = deadline - now;
     if (diff <= 0) return "OVERDUE";
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -427,7 +429,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                     const isPurchasing = purchasing === itemId;
                     const canPurchase = windowStatus?.isOpen && !isPurchasing;
                     const storageAge = item.storageStartTime 
-                      ? Math.floor((Date.now() - item.storageStartTime) / (1000 * 60 * 60 * 24))
+                      ? Math.floor((getUgandaTime() - item.storageStartTime) / (1000 * 60 * 60 * 24))
                       : 0;
 
                     return (

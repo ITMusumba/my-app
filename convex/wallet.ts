@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID, calculateTraderExposureInternal } from "./utils";
+import { generateUTID, calculateTraderExposureInternal, getUgandaTime } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 
@@ -113,7 +113,7 @@ export async function ensureTraderCapital(
       type: "capital_deposit",
       amount: needed,
       balanceAfter,
-      timestamp: Date.now(),
+      timestamp: getUgandaTime(),
       metadata: {
         source: "auto_restore_demo_capital",
         reason: "Ensuring trader has 1,000,000 UGX for demo purchases",
@@ -175,7 +175,7 @@ export const depositCapital = mutation({
       type: "capital_deposit",
       amount: args.amount,
       balanceAfter,
-      timestamp: Date.now(),
+      timestamp: getUgandaTime(),
       metadata: { source: "manual_deposit" },
     });
 
@@ -244,7 +244,7 @@ export const withdrawProfit = mutation({
       type: "profit_withdrawal",
       amount: args.amount,
       balanceAfter,
-      timestamp: Date.now(),
+      timestamp: getUgandaTime(),
       metadata: { source: "manual_withdrawal" },
     });
 

@@ -14,7 +14,7 @@
 
 import { v } from "convex/values";
 import { mutation, query, DatabaseReader } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { pilotModeActiveError, throwAppError, notAdminError } from "./errors";
 
 /**
@@ -92,7 +92,7 @@ export const setPilotMode = mutation({
     // Get existing settings (singleton pattern)
     const existing = await ctx.db.query("systemSettings").first();
 
-    const now = Date.now();
+    const now = getUgandaTime();
 
     if (existing) {
       // Update existing settings

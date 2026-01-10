@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID, getStorageFeeRate, getBuyerServiceFeePercentage } from "./utils";
+import { generateUTID, getStorageFeeRate, getBuyerServiceFeePercentage, getUgandaTime } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY, DEFAULT_BUYER_SERVICE_FEE_PERCENTAGE } from "./constants";
 import { Id } from "./_generated/dataModel";
 
@@ -43,7 +43,7 @@ async function logAdminAction(
     reason,
     targetUtid,
     metadata,
-    timestamp: Date.now(),
+    timestamp: getUgandaTime(),
   });
   return utid;
 }
@@ -84,12 +84,12 @@ export const openPurchaseWindow = mutation({
     await ctx.db.insert("purchaseWindows", {
       isOpen: true,
       openedBy: args.adminId,
-      openedAt: Date.now(),
+      openedAt: getUgandaTime(),
       reason: args.reason,
       utid,
     });
 
-    return { utid, openedAt: Date.now() };
+    return { utid, openedAt: getUgandaTime() };
   },
 });
 
@@ -125,7 +125,7 @@ export const closePurchaseWindow = mutation({
       closedAt: Date.now(),
     });
 
-    return { utid, closedAt: Date.now() };
+    return { utid, closedAt: getUgandaTime() };
   },
 });
 
@@ -289,8 +289,8 @@ export const confirmDeliveryToStorageByUTID = mutation({
           totalKilos,
           blockSize: 100, // Target block size
           produceType: group.produceType,
-          acquiredAt: Date.now(),
-          storageStartTime: Date.now(),
+          acquiredAt: getUgandaTime(),
+          storageStartTime: getUgandaTime(),
           status: "in_storage",
           utid: inventoryUtid,
         });
@@ -415,7 +415,7 @@ export const reverseDeliveryFailure = mutation({
       type: "capital_unlock",
       amount: unitPrice,
       balanceAfter,
-      timestamp: Date.now(),
+      timestamp: getUgandaTime(),
       metadata: {
         unitId: args.unitId,
         listingId: listing._id,
@@ -482,7 +482,7 @@ export const resetAllTransactions = mutation({
       args.reason,
       undefined,
       {
-        timestamp: Date.now(),
+        timestamp: getUgandaTime(),
         warning: "All transactions have been reset",
       }
     );
@@ -532,7 +532,7 @@ export const resetAllTransactions = mutation({
             type: "capital_deposit",
             amount: MAX_TRADER_EXPOSURE_UGX, // 1,000,000 UGX
             balanceAfter: MAX_TRADER_EXPOSURE_UGX,
-            timestamp: Date.now(),
+            timestamp: getUgandaTime(),
             metadata: {
               source: "admin_reset_restore",
               reason: args.reason,
@@ -692,7 +692,7 @@ export const updateKiloShavingRate = mutation({
       await ctx.db.insert("systemSettings", {
         pilotMode: false,
         setBy: args.adminId,
-        setAt: Date.now(),
+        setAt: getUgandaTime(),
         reason: "Initial system settings",
         utid: generateUTID("admin"),
         storageFeeRateKgPerDay: args.rateKgPerDay,
@@ -723,17 +723,17 @@ export const getTodaySystemMetrics = query({
     await verifyAdmin(ctx, args.adminId);
 
     // Get today's date range (start of day to end of day in Uganda time - UTC+3)
-    const now = Date.now();
-    // Uganda is UTC+3, so we need to adjust
+    // Since all timestamps are now stored in Uganda time, we calculate in Uganda time
+    const now = getUgandaTime();
     const ugandaOffset = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
-    const nowInUganda = now + ugandaOffset;
+    const nowInUganda = now; // Already in Uganda time
     const today = new Date(nowInUganda);
     today.setUTCHours(0, 0, 0, 0);
     const startOfDayUganda = today.getTime();
     const endOfDayUganda = startOfDayUganda + 24 * 60 * 60 * 1000 - 1;
-    // Convert back to UTC for comparison with database timestamps
-    const startOfDay = startOfDayUganda - ugandaOffset;
-    const endOfDay = endOfDayUganda - ugandaOffset;
+    // Use Uganda time directly for comparison (timestamps are stored in Uganda time)
+    const startOfDay = startOfDayUganda;
+    const endOfDay = endOfDayUganda;
 
     // Helper function to check if timestamp is today
     const isToday = (timestamp: number) => timestamp >= startOfDay && timestamp <= endOfDay;
@@ -1033,7 +1033,7 @@ export const updateBuyerServiceFeePercentage = mutation({
       await ctx.db.insert("systemSettings", {
         pilotMode: false,
         setBy: args.adminId,
-        setAt: Date.now(),
+        setAt: getUgandaTime(),
         reason: "Initial system settings",
         utid: generateUTID("admin"),
         buyerServiceFeePercentage: args.serviceFeePercentage,
@@ -1307,7 +1307,7 @@ export const addQualityOption = mutation({
       value: args.value.trim(),
       order: args.order,
       active: true,
-      createdAt: Date.now(),
+      createdAt: getUgandaTime(),
       createdBy: args.adminId,
     });
 
@@ -1507,7 +1507,7 @@ export const addProduceOption = mutation({
       icon: args.icon.trim(),
       order: args.order,
       active: true,
-      createdAt: Date.now(),
+      createdAt: getUgandaTime(),
       createdBy: args.adminId,
     });
 

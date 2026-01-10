@@ -10,7 +10,7 @@
 
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { generateUTID, calculateTraderExposureInternal } from "./utils";
+import { generateUTID, calculateTraderExposureInternal, getUgandaTime } from "./utils";
 import { calculateDeliverySLA } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
@@ -122,7 +122,7 @@ async function lockUnitInternal(
     type: "capital_lock",
     amount: unitPrice,
     balanceAfter,
-    timestamp: Date.now(),
+    timestamp: getUgandaTime(),
     metadata: {
       unitId: unitId,
       listingId: listing._id,
@@ -131,7 +131,7 @@ async function lockUnitInternal(
   });
 
   // Lock the unit
-  const paymentTime = Date.now();
+  const paymentTime = getUgandaTime();
   const deliveryDeadline = calculateDeliverySLA(paymentTime);
   
   await ctx.db.patch(unitId, {

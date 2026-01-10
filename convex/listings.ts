@@ -8,7 +8,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
@@ -88,7 +88,7 @@ export const createListing = mutation({
       unitSize: actualUnitSize, // Store actual unit size (10kg or less)
       totalUnits,
       status: "active",
-      createdAt: Date.now(),
+      createdAt: getUgandaTime(),
       deliverySLA: 0, // Set when payment is made
       qualityRating: args.qualityRating?.trim() || undefined,
       qualityComment: args.qualityComment?.trim() || undefined,

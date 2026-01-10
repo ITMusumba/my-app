@@ -15,7 +15,7 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -50,7 +50,7 @@ async function logAdminNotificationAction(
       notificationType,
       ...metadata,
     },
-    timestamp: Date.now(),
+        timestamp: getUgandaTime(),
   });
   return utid;
 }
@@ -212,7 +212,7 @@ export const sendBroadcastNotification = mutation({
     // Get all users
     const allUsers = await ctx.db.query("users").collect();
 
-    const now = Date.now();
+    const now = getUgandaTime();
     const notificationUtid = generateUTID("admin");
 
     // Create notification for each user
@@ -225,7 +225,7 @@ export const sendBroadcastNotification = mutation({
         message: args.message,
         utid: notificationUtid, // Same UTID for all notifications in this broadcast
         read: false,
-        createdAt: now,
+        createdAt: getUgandaTime(),
       });
       notificationIds.push(notificationId);
     }
@@ -275,7 +275,7 @@ export const sendRoleBasedNotification = mutation({
       .withIndex("by_role", (q: any) => q.eq("role", args.role))
       .collect();
 
-    const now = Date.now();
+    const now = getUgandaTime();
     const notificationUtid = generateUTID("admin");
 
     // Create notification for each user
@@ -288,7 +288,7 @@ export const sendRoleBasedNotification = mutation({
         message: args.message,
         utid: notificationUtid, // Same UTID for all notifications in this role-based send
         read: false,
-        createdAt: now,
+        createdAt: getUgandaTime(),
       });
       notificationIds.push(notificationId);
     }
@@ -348,7 +348,7 @@ export const sendUTIDSpecificNotification = mutation({
       throw new Error(`No users found related to UTID: ${args.targetUtid}`);
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
     const notificationUtid = generateUTID("admin");
 
     // Create notification for each related user
@@ -361,7 +361,7 @@ export const sendUTIDSpecificNotification = mutation({
         message: args.message,
         utid: args.targetUtid, // Reference to the transaction UTID
         read: false,
-        createdAt: now,
+        createdAt: getUgandaTime(),
       });
       notificationIds.push(notificationId);
     }
@@ -491,7 +491,7 @@ export const markNotificationAsRead = mutation({
     return {
       notificationId: args.notificationId,
       read: true,
-      updatedAt: Date.now(),
+      updatedAt: getUgandaTime(),
     };
   },
 });
@@ -527,7 +527,7 @@ export const markAllNotificationsAsRead = mutation({
 
     return {
       markedCount: unreadNotifications.length,
-      updatedAt: Date.now(),
+      updatedAt: getUgandaTime(),
     };
   },
 });
@@ -562,7 +562,7 @@ export const sendNotificationToSelectedUsers = mutation({
       users.push(user);
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
     const notificationUtid = generateUTID("admin");
 
     // Create notification for each selected user
@@ -575,7 +575,7 @@ export const sendNotificationToSelectedUsers = mutation({
         message: args.message,
         utid: notificationUtid,
         read: false,
-        createdAt: now,
+        createdAt: getUgandaTime(),
       });
       notificationIds.push(notificationId);
     }

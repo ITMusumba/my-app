@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { generateUTID } from "./utils";
+import { generateUTID, getUgandaTime } from "./utils";
 import { calculatePickupSLA } from "./utils";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
@@ -114,7 +114,7 @@ export const createBuyerPurchase = mutation({
     // All operations happen in one mutation - Convex guarantees atomicity.
     // If any step fails, entire operation rolls back.
 
-    const purchaseTime = Date.now();
+    const purchaseTime = getUgandaTime();
     const pickupDeadline = calculatePickupSLA(purchaseTime);
 
     // Step 1: Lock inventory (status → "sold")

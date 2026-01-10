@@ -85,7 +85,7 @@ export const seedDemoData = mutation({
             unitSize: 10,
             totalUnits,
             status: "active",
-            createdAt: Date.now(),
+            createdAt: getUgandaTime(),
             deliverySLA: 0,
           });
 
@@ -140,7 +140,7 @@ export const seedDemoData = mutation({
             type: "capital_deposit",
             amount: depositAmount,
             balanceAfter,
-            timestamp: Date.now(),
+            timestamp: getUgandaTime(),
             metadata: { source: "demo_seed", pilot: true },
           });
 
@@ -184,7 +184,7 @@ export const seedDemoData = mutation({
             type: "capital_deposit",
             amount: depositAmount,
             balanceAfter,
-            timestamp: Date.now(),
+            timestamp: getUgandaTime(),
             metadata: { source: "demo_seed", pilot: true, role: "buyer" },
           });
 

@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { PILOT_SHARED_PASSWORD } from "./constants";
+import { getUgandaTime } from "./utils";
 
 /**
  * Generate a stable, non-identifying alias for a user
@@ -76,8 +77,8 @@ export const createUser = mutation({
       role: args.role,
       alias,
       state: "active", // Initial state for new users
-      createdAt: Date.now(),
-      lastActiveAt: Date.now(),
+      createdAt: getUgandaTime(),
+      lastActiveAt: getUgandaTime(),
       passwordHash,
     });
 
@@ -148,8 +149,8 @@ export const signup = mutation({
       role: args.role,
       alias,
       state: "active",
-      createdAt: Date.now(),
-      lastActiveAt: Date.now(),
+      createdAt: getUgandaTime(),
+      lastActiveAt: getUgandaTime(),
       passwordHash,
     });
 
@@ -204,7 +205,7 @@ export const login = mutation({
 
     // Update last active timestamp
     await ctx.db.patch(user._id, {
-      lastActiveAt: Date.now(),
+      lastActiveAt: getUgandaTime(),
     });
 
     // Return user info

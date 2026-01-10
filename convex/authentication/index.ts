@@ -406,8 +406,9 @@ export async function validateSession(
     return createError("OPERATION_FAILED", "Invalid session token");
   }
   
-  // Check if session is expired (read-only operation, use current time)
-  const now = Date.now();
+  // Check if session is expired (read-only operation, use current time in Uganda)
+  const { getUgandaTime } = await import("../utils");
+  const now = getUgandaTime();
   if (session.expiresAt < now) {
     return createError("OPERATION_FAILED", "Session has expired");
   }

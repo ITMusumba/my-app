@@ -29,11 +29,13 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    // Timestamps are stored in Uganda time, convert for display
+    return formatUgandaDateTime(timestamp);
   };
 
   const formatTimeRemaining = (deadline: number) => {
-    const now = Date.now();
+    // Use Uganda time for comparisons
+    const now = getUgandaTime();
     const diff = deadline - now;
     if (diff <= 0) return "OVERDUE";
     const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -102,7 +104,7 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
     const ledgerData = transactionsLedger.transactions.map((tx: any) => ({
       utid: tx.lockUtid || "N/A",
       type: "successful_transaction",
-      timestamp: tx.lockedAt || Date.now(),
+      timestamp: tx.lockedAt || getUgandaTime(),
       status: "delivered",
       details: {
         produceType: tx.produceType,
@@ -118,7 +120,8 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
     }));
 
     const formattedData = formatUTIDDataForExport(ledgerData);
-    const filename = `farmer_transactions_ledger_${new Date().toISOString().split("T")[0]}`;
+    const ugandaDate = new Date(getUgandaTime() - 3 * 60 * 60 * 1000); // Convert back to UTC for ISO string
+    const filename = `farmer_transactions_ledger_${ugandaDate.toISOString().split("T")[0]}`;
 
     if (format === "excel") {
       exportToExcel(formattedData, filename, "Farmer");

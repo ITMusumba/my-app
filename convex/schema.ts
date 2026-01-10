@@ -167,6 +167,45 @@ export default defineSchema({
     .index("by_farmer_status", ["farmerId", "status"]),
 
   /**
+   * Trader-Buyer Negotiations/Offers
+   * - Buyers make offers on trader inventory
+   * - Traders can accept, reject, or counter-offer
+   * - Only accepted offers can proceed to purchase
+   */
+  traderBuyerNegotiations: defineTable({
+    inventoryId: v.id("traderInventory"),
+    traderId: v.id("users"),
+    buyerId: v.id("users"),
+    status: v.union(
+      v.literal("pending"), // Buyer made offer, waiting for trader response
+      v.literal("accepted"), // Trader accepted, buyer can now purchase
+      v.literal("rejected"), // Trader rejected
+      v.literal("countered"), // Trader made counter-offer, waiting for buyer
+      v.literal("expired"), // Negotiation expired (timeout)
+      v.literal("cancelled") // Negotiation cancelled
+    ),
+    // Price negotiation
+    traderPricePerKilo: v.number(), // Original trader's asking price
+    buyerOfferPricePerKilo: v.number(), // Buyer's offer price
+    currentPricePerKilo: v.number(), // Current negotiated price (may be counter-offer)
+    kilos: v.number(), // Kilos buyer wants to purchase
+    // Timestamps
+    createdAt: v.number(), // When negotiation started
+    lastUpdatedAt: v.number(), // Last update timestamp
+    expiresAt: v.optional(v.number()), // Optional expiration (e.g., 24 hours)
+    // UTIDs
+    negotiationUtid: v.string(), // UTID for this negotiation
+    acceptedUtid: v.optional(v.string()), // UTID when accepted (for purchase)
+  })
+    .index("by_inventory", ["inventoryId"])
+    .index("by_trader", ["traderId"])
+    .index("by_buyer", ["buyerId"])
+    .index("by_status", ["status"])
+    .index("by_utid", ["negotiationUtid"])
+    .index("by_trader_status", ["traderId", "status"])
+    .index("by_buyer_status", ["buyerId", "status"]),
+
+  /**
    * Trader inventory
    * - Aggregates into 100kg blocks for buyers
    * - Tracks storage time for fee calculation
