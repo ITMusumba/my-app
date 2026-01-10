@@ -18,7 +18,16 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
   const walletBalance = useQuery(api.buyerDashboard.getBuyerWalletBalance, { buyerId: userId });
   const storageFeeRate = useQuery(api.buyerDashboard.getBuyerStorageFeeRate, { buyerId: userId });
   const serviceFeePercentage = useQuery(api.buyerDashboard.getBuyerServiceFeePercentageQuery, { buyerId: userId });
+  const transactionLedger = useQuery(api.buyerDashboard.getBuyerTransactionLedger, { buyerId: userId });
+  const walletReport = useQuery(api.buyerDashboard.getBuyerWalletReport, { buyerId: userId });
   const createPurchase = useMutation(api.buyers.createBuyerPurchase);
+  const makeBuyerOffer = useMutation(api.traderBuyerNegotiations.makeBuyerOffer);
+  
+  const [selectedInventoryUtids, setSelectedInventoryUtids] = useState<Set<string>>(new Set());
+  const [bulkOfferPrice, setBulkOfferPrice] = useState<string>("");
+  const [bulkOfferKilos, setBulkOfferKilos] = useState<string>("");
+  const [isMakingBulkOffer, setIsMakingBulkOffer] = useState(false);
+  const [bulkOfferMessage, setBulkOfferMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const initiateDeposit = useAction(api.pesapal.initiateBuyerDeposit);
   const paymentTransactions = useQuery(api.pesapal.getUserPaymentTransactions, { userId });
   
@@ -128,6 +137,110 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
       });
     } finally {
       setPurchasing(null);
+    }
+  };
+
+  const handleToggleSelection = (inventoryUtid: string) => {
+    const newSelection = new Set(selectedInventoryUtids);
+    if (newSelection.has(inventoryUtid)) {
+      newSelection.delete(inventoryUtid);
+    } else {
+      newSelection.add(inventoryUtid);
+    }
+    setSelectedInventoryUtids(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (inventory && inventory.inventory.length > 0) {
+      if (selectedInventoryUtids.size === inventory.inventory.length) {
+        setSelectedInventoryUtids(new Set());
+      } else {
+        setSelectedInventoryUtids(new Set(inventory.inventory.map((item: any) => item.inventoryUtid)));
+      }
+    }
+  };
+
+  const handleBulkOffer = async () => {
+    if (selectedInventoryUtids.size === 0) {
+      setBulkOfferMessage({ type: "error", text: "Please select at least one inventory item" });
+      return;
+    }
+
+    const offerPrice = parseFloat(bulkOfferPrice);
+    const offerKilos = parseFloat(bulkOfferKilos);
+
+    if (!bulkOfferPrice || isNaN(offerPrice) || offerPrice <= 0) {
+      setBulkOfferMessage({ type: "error", text: "Please enter a valid offer price per kilo" });
+      return;
+    }
+
+    if (!bulkOfferKilos || isNaN(offerKilos) || offerKilos <= 0) {
+      setBulkOfferMessage({ type: "error", text: "Please enter a valid quantity (kilos)" });
+      return;
+    }
+
+    setIsMakingBulkOffer(true);
+    setBulkOfferMessage(null);
+
+    try {
+      // Find inventory items by UTID
+      const selectedItems = inventory?.inventory.filter((item: any) => 
+        selectedInventoryUtids.has(item.inventoryUtid)
+      ) || [];
+
+      const results = [];
+      const errors = [];
+
+      for (const item of selectedItems) {
+        try {
+          // Validate kilos for this item
+          if (offerKilos > item.totalKilos) {
+            errors.push(`${item.inventoryUtid}: Requested ${offerKilos} kg exceeds available ${item.totalKilos} kg`);
+            continue;
+          }
+
+          const result = await makeBuyerOffer({
+            buyerId: userId,
+            inventoryId: item.inventoryId,
+            offerPricePerKilo: offerPrice,
+            kilos: offerKilos,
+          });
+
+          results.push({
+            utid: item.inventoryUtid,
+            negotiationUtid: result.negotiationUtid,
+          });
+        } catch (error: any) {
+          errors.push(`${item.inventoryUtid}: ${error.message}`);
+        }
+      }
+
+      if (results.length > 0) {
+        setBulkOfferMessage({
+          type: "success",
+          text: `Successfully made ${results.length} offer(s). ${errors.length > 0 ? `Errors: ${errors.length}` : ""}`,
+        });
+        // Clear selection and inputs
+        setSelectedInventoryUtids(new Set());
+        setBulkOfferPrice("");
+        setBulkOfferKilos("");
+      } else {
+        setBulkOfferMessage({
+          type: "error",
+          text: `Failed to make offers. ${errors.join("; ")}`,
+        });
+      }
+
+      setTimeout(() => {
+        setBulkOfferMessage(null);
+      }, 10000);
+    } catch (error: any) {
+      setBulkOfferMessage({
+        type: "error",
+        text: `Bulk offer failed: ${error.message}`,
+      });
+    } finally {
+      setIsMakingBulkOffer(false);
     }
   };
 
@@ -389,8 +502,11 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
             fontWeight: "600",
             letterSpacing: "-0.01em"
           }}>
-          Available Inventory
+          Available Inventory (100kg Bags)
         </h3>
+        <p style={{ color: "#666", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          All inventory is listed in 100kg bags. Select multiple UTIDs to make bulk offers.
+        </p>
         
         {purchaseMessage && (
           <div style={{
@@ -411,13 +527,129 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
           <p style={{ color: "#666" }}>No inventory available</p>
         ) : (
           <>
+            {/* Bulk Offer Section */}
+            {selectedInventoryUtids.size > 0 && (
+              <div style={{
+                padding: "1rem",
+                marginBottom: "1.5rem",
+                background: "#e3f2fd",
+                borderRadius: "8px",
+                border: "1px solid #2196f3"
+              }}>
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "1rem", color: "#1565c0" }}>
+                  Make Bulk Offer ({selectedInventoryUtids.size} selected)
+                </h4>
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "#666" }}>
+                      Offer Price per Kilo (UGX)
+                    </label>
+                    <input
+                      type="number"
+                      value={bulkOfferPrice}
+                      onChange={(e) => setBulkOfferPrice(e.target.value)}
+                      placeholder="Enter price"
+                      min="1"
+                      step="0.01"
+                      disabled={isMakingBulkOffer}
+                      style={{
+                        padding: "0.5rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        fontSize: "0.9rem",
+                        width: "150px"
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "#666" }}>
+                      Quantity (kg)
+                    </label>
+                    <input
+                      type="number"
+                      value={bulkOfferKilos}
+                      onChange={(e) => setBulkOfferKilos(e.target.value)}
+                      placeholder="Enter kilos"
+                      min="1"
+                      step="0.01"
+                      disabled={isMakingBulkOffer}
+                      style={{
+                        padding: "0.5rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        fontSize: "0.9rem",
+                        width: "120px"
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleBulkOffer}
+                    disabled={isMakingBulkOffer || !bulkOfferPrice || !bulkOfferKilos}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      background: isMakingBulkOffer || !bulkOfferPrice || !bulkOfferKilos ? "#ccc" : "#1976d2",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      cursor: isMakingBulkOffer || !bulkOfferPrice || !bulkOfferKilos ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {isMakingBulkOffer ? "Making Offers..." : "Make Bulk Offer"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedInventoryUtids(new Set());
+                      setBulkOfferPrice("");
+                      setBulkOfferKilos("");
+                    }}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      background: "#fff",
+                      color: "#666",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      fontSize: "0.9rem",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+                {bulkOfferMessage && (
+                  <div style={{
+                    marginTop: "0.75rem",
+                    padding: "0.75rem",
+                    background: bulkOfferMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                    borderRadius: "4px",
+                    color: bulkOfferMessage.type === "success" ? "#2e7d32" : "#c62828",
+                    fontSize: "0.85rem"
+                  }}>
+                    {bulkOfferMessage.text}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Table View for Desktop */}
             <div style={{ overflowX: "auto", marginBottom: "1.5rem" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid #e0e0e0", background: "#f9f9f9" }}>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333", width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        checked={inventory && selectedInventoryUtids.size === inventory.inventory.length && inventory.inventory.length > 0}
+                        onChange={handleSelectAll}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>UTID</th>
                     <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Produce</th>
-                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Qty</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Quantity (kg)</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Quality</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Location</th>
                     <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Storage Age</th>
                     <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Status</th>
                     <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Action</th>
@@ -431,11 +663,31 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                     const storageAge = item.storageStartTime 
                       ? Math.floor((getUgandaTime() - item.storageStartTime) / (1000 * 60 * 60 * 24))
                       : 0;
+                    const isSelected = selectedInventoryUtids.has(item.inventoryUtid);
 
                     return (
-                      <tr key={index} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <tr key={index} style={{ borderBottom: "1px solid #f0f0f0", background: isSelected ? "#e3f2fd" : "transparent" }}>
+                        <td style={{ padding: "0.75rem" }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelection(item.inventoryUtid)}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </td>
+                        <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#666" }}>
+                          {item.inventoryUtid}
+                        </td>
                         <td style={{ padding: "0.75rem" }}>{item.produceType}</td>
-                        <td style={{ padding: "0.75rem" }}>{item.totalKilos} kg</td>
+                        <td style={{ padding: "0.75rem" }}>
+                          <strong>{item.totalKilos} kg</strong>
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          {item.qualityRating || "N/A"}
+                        </td>
+                        <td style={{ padding: "0.75rem" }}>
+                          {item.storageLocation ? `${item.storageLocation.districtName} (${item.storageLocation.code})` : "N/A"}
+                        </td>
                         <td style={{ padding: "0.75rem" }}>{storageAge} days</td>
                         <td style={{ padding: "0.75rem" }}>
                           <span style={{
@@ -675,7 +927,8 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-        border: "1px solid #e0e0e0"
+        border: "1px solid #e0e0e0",
+        marginBottom: "1.5rem"
       }}>
           <h3 style={{ 
             marginTop: 0, 
@@ -720,6 +973,219 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Transaction Ledger */}
+      <div style={{
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0",
+        marginBottom: "1.5rem"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+          Transaction Ledger
+        </h3>
+        {transactionLedger === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : transactionLedger.transactions.length === 0 ? (
+          <p style={{ color: "#666" }}>No transactions yet</p>
+        ) : (
+          <>
+            {/* Summary */}
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", 
+              gap: "1rem", 
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              background: "#f5f5f5",
+              borderRadius: "8px"
+            }}>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Total Transactions</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1976d2" }}>
+                  {transactionLedger.totals.totalTransactions}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Total Quantity</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1976d2" }}>
+                  {transactionLedger.totals.totalQuantityKilos.toFixed(2)} kg
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Total Cost</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1976d2" }}>
+                  {formatUGX(transactionLedger.totals.totalCost)}
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions Table */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #e0e0e0", background: "#f9f9f9" }}>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Date</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Produce</th>
+                    <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Quantity (kg)</th>
+                    <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Unit Price/kg</th>
+                    <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Service Fee</th>
+                    <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Total Cost</th>
+                    <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>UTID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactionLedger.transactions.map((tx: any, index: number) => (
+                    <tr key={index} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{ padding: "0.75rem" }}>{formatDate(tx.timestamp)}</td>
+                      <td style={{ padding: "0.75rem" }}>{tx.produceType || "N/A"}</td>
+                      <td style={{ padding: "0.75rem", textAlign: "right" }}>{tx.quantityKilos.toFixed(2)}</td>
+                      <td style={{ padding: "0.75rem", textAlign: "right" }}>{formatUGX(tx.unitPricePerKilo)}</td>
+                      <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                        {formatUGX(tx.serviceFee)} ({tx.serviceFeePercentage}%)
+                      </td>
+                      <td style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#1976d2" }}>
+                        {formatUGX(tx.totalCost)}
+                      </td>
+                      <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#999" }}>
+                        {tx.utid}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Wallet Report */}
+      <div style={{
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+          Wallet Report
+        </h3>
+        {walletReport === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <>
+            {/* Summary */}
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", 
+              gap: "1rem", 
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              background: "#f5f5f5",
+              borderRadius: "8px"
+            }}>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Total Money In</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#2e7d32" }}>
+                  {formatUGX(walletReport.totals.totalMoneyIn)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Total Money Out</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#d32f2f" }}>
+                  {formatUGX(walletReport.totals.totalMoneyOut)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.25rem" }}>Current Balance</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#1976d2" }}>
+                  {formatUGX(walletReport.totals.currentBalance)}
+                </div>
+              </div>
+            </div>
+
+            {/* Money In */}
+            <div style={{ marginBottom: "2rem" }}>
+              <h4 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1rem", color: "#2e7d32" }}>
+                Money In (Deposits)
+              </h4>
+              {walletReport.moneyIn.length === 0 ? (
+                <p style={{ color: "#666" }}>No deposits yet</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid #e0e0e0", background: "#f9f9f9" }}>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Date</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Description</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Amount</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Balance After</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>UTID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {walletReport.moneyIn.map((entry: any, index: number) => (
+                        <tr key={index} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <td style={{ padding: "0.75rem" }}>{formatDate(entry.timestamp)}</td>
+                          <td style={{ padding: "0.75rem" }}>{entry.description}</td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#2e7d32" }}>
+                            +{formatUGX(entry.amount)}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right" }}>{formatUGX(entry.balanceAfter)}</td>
+                          <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#999" }}>
+                            {entry.utid}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Money Out */}
+            <div>
+              <h4 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1rem", color: "#d32f2f" }}>
+                Money Out (Purchases)
+              </h4>
+              {walletReport.moneyOut.length === 0 ? (
+                <p style={{ color: "#666" }}>No purchases yet</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid #e0e0e0", background: "#f9f9f9" }}>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Date</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>Description</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Amount</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#333" }}>Balance After</th>
+                        <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "600", color: "#333" }}>UTID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {walletReport.moneyOut.map((entry: any, index: number) => (
+                        <tr key={index} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                          <td style={{ padding: "0.75rem" }}>{formatDate(entry.timestamp)}</td>
+                          <td style={{ padding: "0.75rem" }}>{entry.description}</td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600", color: "#d32f2f" }}>
+                            -{formatUGX(entry.amount)}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right" }}>{formatUGX(entry.balanceAfter)}</td>
+                          <td style={{ padding: "0.75rem", fontFamily: "monospace", fontSize: "0.8rem", color: "#999" }}>
+                            {entry.utid}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -195,3 +195,44 @@ export async function getBuyerServiceFeePercentage(
   const settings = await ctx.db.query("systemSettings").first();
   return settings?.buyerServiceFeePercentage ?? DEFAULT_BUYER_SERVICE_FEE_PERCENTAGE;
 }
+
+/**
+ * Calculate price per kilo from inventory
+ * Gets the average price per kilo from the listing units that make up the inventory
+ * @param ctx - Database context
+ * @param inventoryId - The inventory ID
+ * @returns Price per kilo in UGX
+ */
+export async function calculateInventoryPricePerKilo(
+  ctx: { db: DatabaseReader | DatabaseWriter },
+  inventoryId: string
+): Promise<number> {
+  const inventory = await ctx.db.get(inventoryId as any);
+  if (!inventory || !inventory.listingUnitIds || inventory.listingUnitIds.length === 0) {
+    return 0;
+  }
+
+  // Get all listing units and their prices
+  let totalPrice = 0;
+  let totalKilos = 0;
+
+  for (const unitId of inventory.listingUnitIds) {
+    const unit = await ctx.db.get(unitId);
+    if (unit) {
+      const listing = await ctx.db.get(unit.listingId);
+      if (listing) {
+        const unitSize = listing.unitSize || 10; // Default to 10kg if not set
+        const unitPrice = listing.pricePerKilo * unitSize;
+        totalPrice += unitPrice;
+        totalKilos += unitSize;
+      }
+    }
+  }
+
+  if (totalKilos === 0) {
+    return 0;
+  }
+
+  // Return average price per kilo
+  return totalPrice / totalKilos;
+}

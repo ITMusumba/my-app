@@ -85,6 +85,9 @@ export const getAllActiveUTIDs = query({
         });
       }
       const utidData = utidMap.get(listing.utid)!;
+      // Get storage location details
+      const storageLocation = await ctx.db.get(listing.storageLocationId);
+      const totalPrice = listing.totalKilos * listing.pricePerKilo;
       utidData.entities.push({
         table: "listings",
         listingId: listing._id,
@@ -92,7 +95,15 @@ export const getAllActiveUTIDs = query({
         produceType: listing.produceType,
         totalKilos: listing.totalKilos,
         pricePerKilo: listing.pricePerKilo,
+        totalPrice: totalPrice, // Total price paid
+        qualityRating: listing.qualityRating || null,
+        qualityComment: listing.qualityComment || null,
+        storageLocation: storageLocation ? {
+          districtName: storageLocation.districtName,
+          code: storageLocation.code,
+        } : null,
         createdAt: listing.createdAt,
+        timestamp: listing.createdAt, // Timestamp for UTID
       });
     }
 
@@ -113,6 +124,16 @@ export const getAllActiveUTIDs = query({
           });
         }
         const utidData = utidMap.get(unit.lockUtid)!;
+        // Get listing to show farmer's offered price
+        const listing = await ctx.db.get(unit.listingId);
+        // Get negotiation to show actual negotiated price (if exists)
+        let negotiatedPricePerKilo = listing?.pricePerKilo || null;
+        if (unit.activeNegotiationId) {
+          const negotiation = await ctx.db.get(unit.activeNegotiationId);
+          if (negotiation && negotiation.status === "accepted" && negotiation.currentPricePerKilo) {
+            negotiatedPricePerKilo = negotiation.currentPricePerKilo;
+          }
+        }
         utidData.entities.push({
           table: "listingUnits",
           unitId: unit._id,
@@ -122,6 +143,8 @@ export const getAllActiveUTIDs = query({
           lockedAt: unit.lockedAt,
           deliveryDeadline: unit.deliveryDeadline,
           deliveryStatus: unit.deliveryStatus,
+          farmerOfferedPricePerKilo: listing?.pricePerKilo || null, // Farmer's original asking price
+          negotiatedPricePerKilo: negotiatedPricePerKilo, // Actual negotiated price (if negotiation happened)
         });
       }
     }
@@ -141,11 +164,22 @@ export const getAllActiveUTIDs = query({
         });
       }
       const utidData = utidMap.get(inv.utid)!;
+      // Get storage location details
+      const storageLocation = await ctx.db.get(inv.storageLocationId);
       utidData.entities.push({
         table: "traderInventory",
         inventoryId: inv._id,
         status: inv.status,
         totalKilos: inv.totalKilos,
+        produceType: inv.produceType,
+        qualityRating: inv.qualityRating || null,
+        unitPrice: inv.unitPrice, // Price per kilo (retained from listing)
+        storageLocation: storageLocation ? {
+          districtName: storageLocation.districtName,
+          code: storageLocation.code,
+        } : null,
+        acquiredAt: inv.acquiredAt, // Timestamp when received at storage
+        is100kgBlock: inv.is100kgBlock,
         produceType: inv.produceType,
         acquiredAt: inv.acquiredAt,
       });

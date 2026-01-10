@@ -52,25 +52,33 @@ export const getAvailableInventory = query({
       throw new Error("User is not a buyer");
     }
 
-    // Get all inventory with status "in_storage" (available for purchase)
+    // Get all 100kg blocks with status "in_storage" (available for purchase)
+    // Buyers only see 100kg blocks, not partial inventory
     const availableInventory = await ctx.db
       .query("traderInventory")
       .withIndex("by_status", (q) => q.eq("status", "in_storage"))
+      .filter((q) => q.eq(q.field("is100kgBlock"), true))
       .collect();
 
-    // Enrich with trader aliases (anonymity preserved)
+    // Enrich with trader aliases and storage location (anonymity preserved)
     const enriched = await Promise.all(
       availableInventory.map(async (inventory) => {
         const trader = await ctx.db.get(inventory.traderId);
+        const storageLocation = await ctx.db.get(inventory.storageLocationId);
 
         return {
           inventoryId: inventory._id,
           produceType: inventory.produceType,
-          totalKilos: inventory.totalKilos,
+          totalKilos: inventory.totalKilos, // Should be 100kg for blocks
           blockSize: inventory.blockSize, // Target: 100kg blocks
+          qualityRating: inventory.qualityRating || null, // Quality rating
+          storageLocation: storageLocation ? {
+            districtName: storageLocation.districtName,
+            code: storageLocation.code,
+          } : null,
           traderAlias: trader?.alias || null, // Only alias, no real identity
           inventoryUtid: inventory.utid, // UTID of the transaction that created this inventory
-          acquiredAt: inventory.acquiredAt, // When trader received delivery
+          acquiredAt: inventory.acquiredAt, // When block was created
           storageStartTime: inventory.storageStartTime, // When storage fees started
           // NO PRICES - buyers never see prices
         };
@@ -425,6 +433,198 @@ export const getBuyerWalletBalance = query({
       balance: currentBalance,
       totalDeposits: entries.filter((e) => e.type === "capital_deposit").reduce((sum, e) => sum + e.amount, 0),
       totalEntries: entries.length,
+    };
+  },
+});
+
+/**
+ * Get buyer transaction ledger
+ * 
+ * Shows all purchases with:
+ * - Total quantity of produce acquired
+ * - Unit price per kilo
+ * - Total cost (including service fee)
+ * - UTID
+ * - Timestamp
+ */
+export const getBuyerTransactionLedger = query({
+  args: {
+    buyerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a buyer
+    const user = await ctx.db.get(args.buyerId);
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    // Get all purchases for this buyer
+    const purchases = await ctx.db
+      .query("buyerPurchases")
+      .withIndex("by_buyer", (q) => q.eq("buyerId", args.buyerId))
+      .order("desc")
+      .collect();
+
+    // Enrich purchases with price information from wallet ledger
+    const transactions = await Promise.all(
+      purchases.map(async (purchase) => {
+        // Get wallet ledger entry for this purchase (by UTID)
+        const ledgerEntry = await ctx.db
+          .query("walletLedger")
+          .withIndex("by_utid", (q) => q.eq("utid", purchase.utid))
+          .first();
+
+        // Get inventory info
+        const inventory = await ctx.db.get(purchase.inventoryId);
+        const trader = inventory ? await ctx.db.get(inventory.traderId) : null;
+
+        // Extract price information from ledger metadata
+        const metadata = ledgerEntry?.metadata as any;
+        const basePricePerKilo = metadata?.basePricePerKilo || 0;
+        const serviceFeePercentage = metadata?.serviceFeePercentage || 0;
+        const serviceFee = metadata?.serviceFee || 0;
+        const totalCost = ledgerEntry?.amount || 0;
+
+        return {
+          purchaseId: purchase._id,
+          utid: purchase.utid,
+          produceType: inventory?.produceType || null,
+          quantityKilos: purchase.kilos,
+          unitPricePerKilo: basePricePerKilo,
+          serviceFeePercentage: serviceFeePercentage,
+          serviceFee: serviceFee,
+          totalCost: totalCost,
+          timestamp: purchase.purchasedAt,
+          status: purchase.status,
+          traderAlias: trader?.alias || null,
+        };
+      })
+    );
+
+    // Calculate totals
+    const totals = {
+      totalTransactions: transactions.length,
+      totalQuantityKilos: transactions.reduce((sum, t) => sum + t.quantityKilos, 0),
+      totalCost: transactions.reduce((sum, t) => sum + t.totalCost, 0),
+      totalServiceFees: transactions.reduce((sum, t) => sum + t.serviceFee, 0),
+    };
+
+    return {
+      transactions,
+      totals,
+    };
+  },
+});
+
+/**
+ * Get buyer wallet report
+ * 
+ * Shows money in and money out with timestamps:
+ * - Deposits (money in)
+ * - Purchases (money out)
+ * - All transactions timestamped
+ */
+export const getBuyerWalletReport = query({
+  args: {
+    buyerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a buyer
+    const user = await ctx.db.get(args.buyerId);
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    // Get all ledger entries for this buyer
+    const entries = await ctx.db
+      .query("walletLedger")
+      .withIndex("by_user", (q) => q.eq("userId", args.buyerId))
+      .order("desc")
+      .collect();
+
+    // Categorize entries
+    const moneyIn: Array<{
+      utid: string;
+      amount: number;
+      timestamp: number;
+      type: string;
+      description: string;
+      balanceAfter: number;
+    }> = [];
+
+    const moneyOut: Array<{
+      utid: string;
+      amount: number;
+      timestamp: number;
+      type: string;
+      description: string;
+      balanceAfter: number;
+      metadata?: any;
+    }> = [];
+
+    for (const entry of entries) {
+      const description = entry.metadata?.source === "pesapal_payment" 
+        ? "Deposit via Pesapal" 
+        : entry.metadata?.source === "demo_seed"
+        ? "Demo seed deposit"
+        : entry.metadata?.type === "buyer_purchase"
+        ? `Purchase: ${entry.metadata.produceType || "Unknown"} (${entry.metadata.kilos || 0} kg)`
+        : entry.type === "capital_deposit"
+        ? "Deposit"
+        : entry.type === "capital_lock"
+        ? "Purchase"
+        : entry.type === "capital_unlock"
+        ? "Refund"
+        : "Transaction";
+
+      if (entry.type === "capital_deposit" || entry.type === "capital_unlock") {
+        moneyIn.push({
+          utid: entry.utid,
+          amount: entry.amount,
+          timestamp: entry.timestamp,
+          type: entry.type,
+          description,
+          balanceAfter: entry.balanceAfter,
+        });
+      } else if (entry.type === "capital_lock") {
+        moneyOut.push({
+          utid: entry.utid,
+          amount: entry.amount,
+          timestamp: entry.timestamp,
+          type: entry.type,
+          description,
+          balanceAfter: entry.balanceAfter,
+          metadata: entry.metadata,
+        });
+      }
+    }
+
+    // Calculate totals
+    const totalMoneyIn = moneyIn.reduce((sum, e) => sum + e.amount, 0);
+    const totalMoneyOut = moneyOut.reduce((sum, e) => sum + e.amount, 0);
+    const netBalance = totalMoneyIn - totalMoneyOut;
+
+    // Get current balance
+    const latestEntry = entries[0];
+    const currentBalance = latestEntry?.balanceAfter || 0;
+
+    return {
+      moneyIn,
+      moneyOut,
+      totals: {
+        totalMoneyIn,
+        totalMoneyOut,
+        netBalance,
+        currentBalance,
+      },
+      allTransactions: entries.map((e) => ({
+        utid: e.utid,
+        type: e.type,
+        amount: e.amount,
+        timestamp: e.timestamp,
+        balanceAfter: e.balanceAfter,
+        metadata: e.metadata,
+      })),
     };
   },
 });

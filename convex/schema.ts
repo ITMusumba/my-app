@@ -83,6 +83,7 @@ export default defineSchema({
     deliverySLA: v.number(), // Timestamp: 6 hours after payment
     qualityRating: v.optional(v.string()), // Quality rating from admin-managed dropdown (e.g., "Premium", "Good", "Fair")
     qualityComment: v.optional(v.string()), // Farmer's text comment about produce quality
+    storageLocationId: v.id("storageLocations"), // Storage location (district) where produce will be delivered
   })
     .index("by_farmer", ["farmerId"])
     .index("by_utid", ["utid"])
@@ -185,9 +186,9 @@ export default defineSchema({
       v.literal("cancelled") // Negotiation cancelled
     ),
     // Price negotiation
-    traderPricePerKilo: v.number(), // Original trader's asking price
-    buyerOfferPricePerKilo: v.number(), // Buyer's offer price
-    currentPricePerKilo: v.number(), // Current negotiated price (may be counter-offer)
+    traderPricePerKilo: v.number(), // Trader's counter-offer price (0 if trader hasn't set price yet - buyer makes first offer)
+    buyerOfferPricePerKilo: v.number(), // Buyer's offer price (buyer makes first offer)
+    currentPricePerKilo: v.number(), // Current negotiated price (starts with buyer's offer, updated if trader counters)
     kilos: v.number(), // Kilos buyer wants to purchase
     // Timestamps
     createdAt: v.number(), // When negotiation started
@@ -216,7 +217,10 @@ export default defineSchema({
     totalKilos: v.number(), // Sum of all units
     blockSize: v.number(), // Target: 100kg blocks
     produceType: v.string(),
-    acquiredAt: v.number(), // When trader received delivery
+    storageLocationId: v.id("storageLocations"), // Storage location (district) - retained from farmer listing
+    qualityRating: v.optional(v.string()), // Quality rating - retained from farmer listing
+    unitPrice: v.number(), // Price per kilo in UGX - retained from farmer listing (actual purchase price)
+    acquiredAt: v.number(), // When trader received delivery at storage (timestamp updated when admin confirms)
     storageStartTime: v.number(), // When storage fees start
     status: v.union(
       v.literal("pending_delivery"),
@@ -225,6 +229,7 @@ export default defineSchema({
       v.literal("expired")
     ),
     utid: v.string(), // References the transaction that created this inventory
+    is100kgBlock: v.boolean(), // Whether this is a 100kg block created for buyers
   })
     .index("by_trader", ["traderId"])
     .index("by_status", ["status"])
@@ -406,6 +411,25 @@ export default defineSchema({
     createdBy: v.id("users"), // Admin who created this option
   })
     .index("by_active", ["active"])
+    .index("by_order", ["order"]),
+
+  /**
+   * Storage locations (districts)
+   * - Admin-managed storage locations where the app has storage facilities
+   * - Used by farmers when creating listings to specify delivery location
+   * - Helps admin prepare for delivery at specific locations
+   */
+  storageLocations: defineTable({
+    districtName: v.string(), // District name (e.g., "Kampala", "Wakiso", "Mukono")
+    code: v.string(), // Unique code identifier (e.g., "KLA", "WKS", "MKN")
+    active: v.boolean(), // Whether this location is currently active/available
+    order: v.number(), // Display order (lower numbers appear first)
+    createdAt: v.number(),
+    createdBy: v.id("users"), // Admin who created this location
+    utid: v.string(), // Admin action UTID
+  })
+    .index("by_active", ["active"])
+    .index("by_code", ["code"])
     .index("by_order", ["order"]),
 
   /**

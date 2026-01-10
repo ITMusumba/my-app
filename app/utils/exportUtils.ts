@@ -1,7 +1,7 @@
 /**
- * Export Utilities for UTID Reports
+ * Export Utilities for Farm2Market Reports
  * 
- * Provides functions to export UTID data to Excel and PDF formats
+ * Provides functions to export data to Excel and PDF formats
  */
 
 import * as XLSX from "xlsx";
@@ -52,7 +52,7 @@ export function exportToExcel(
     { wch: 50 }, // Details
   ];
 
-  XLSX.utils.book_append_sheet(workbook, worksheet, "UTID Report");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Farm2Market Report");
 
   // Add summary sheet
   const summaryData = [
@@ -82,7 +82,7 @@ export function exportToPDF(
 
   // Title
   doc.setFontSize(18);
-  doc.text("UTID Report", pageWidth / 2, 20, { align: "center" });
+  doc.text("Farm2Market Report", pageWidth / 2, 20, { align: "center" });
 
   // Subtitle
   doc.setFontSize(12);

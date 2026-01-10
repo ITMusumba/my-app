@@ -13,6 +13,7 @@ export function CreateListing({ userId }: CreateListingProps) {
   const createListing = useMutation(api.listings.createListing);
   const qualityOptions = useQuery(api.listings.getActiveQualityOptions, {});
   const produceOptions = useQuery(api.listings.getActiveProduceOptions, {});
+  const storageLocations = useQuery(api.listings.getActiveStorageLocations, {});
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -23,6 +24,7 @@ export function CreateListing({ userId }: CreateListingProps) {
     pricePerKilo: "",
     qualityRating: "",
     qualityComment: "",
+    storageLocationId: "" as string | "",
   });
 
   const formatUGX = (amount: number) => {
@@ -56,6 +58,12 @@ export function CreateListing({ userId }: CreateListingProps) {
         return;
       }
 
+      if (!formData.storageLocationId) {
+        setMessage({ type: "error", text: "Storage location is required" });
+        setLoading(false);
+        return;
+      }
+
       const result = await createListing({
         farmerId: userId,
         produceType: formData.produceType.trim(),
@@ -63,6 +71,7 @@ export function CreateListing({ userId }: CreateListingProps) {
         pricePerKilo,
         qualityRating: formData.qualityRating || undefined,
         qualityComment: formData.qualityComment.trim() || undefined,
+        storageLocationId: formData.storageLocationId as any,
       });
 
       setMessage({
@@ -77,6 +86,7 @@ export function CreateListing({ userId }: CreateListingProps) {
         pricePerKilo: "",
         qualityRating: "",
         qualityComment: "",
+        storageLocationId: "",
       });
 
       // Hide form after success
@@ -133,7 +143,7 @@ export function CreateListing({ userId }: CreateListingProps) {
           onClick={() => {
             setShowForm(false);
             setMessage(null);
-            setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "" });
+            setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "", storageLocationId: "" });
           }}
           style={{
             padding: "0.5rem 1rem",
@@ -279,6 +289,41 @@ export function CreateListing({ userId }: CreateListingProps) {
             )}
           </div>
 
+          {/* Storage Location Dropdown */}
+          <div>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#333" }}>
+              Storage Location (District) *
+            </label>
+            {storageLocations === undefined ? (
+              <p style={{ color: "#999", fontSize: "0.9rem" }}>Loading storage locations...</p>
+            ) : storageLocations.length === 0 ? (
+              <p style={{ color: "#666", fontSize: "0.9rem", padding: "1rem", background: "#fff3cd", borderRadius: "6px" }}>
+                No storage locations available. Please contact admin to add storage locations.
+              </p>
+            ) : (
+              <select
+                value={formData.storageLocationId}
+                onChange={(e) => setFormData({ ...formData, storageLocationId: e.target.value })}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                  background: "#fff",
+                }}
+              >
+                <option value="">-- Select storage location --</option>
+                {storageLocations.map((location) => (
+                  <option key={location.locationId} value={location.locationId}>
+                    {location.districtName} ({location.code})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* Quality Rating Dropdown */}
           {qualityOptions && qualityOptions.length > 0 && (
             <div>
@@ -354,7 +399,7 @@ export function CreateListing({ userId }: CreateListingProps) {
               onClick={() => {
                 setShowForm(false);
                 setMessage(null);
-                setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "" });
+                setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "", storageLocationId: "" });
               }}
               style={{
                 padding: "0.75rem 1.5rem",

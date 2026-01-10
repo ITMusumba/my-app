@@ -79,22 +79,23 @@ export const makeBuyerOffer = mutation({
       throw new Error("You already have a pending offer on this inventory");
     }
 
-    // Get trader's asking price (we'll use a default for now, or get from inventory metadata)
-    // For now, we'll use the offer price as the current price
-    const traderPricePerKilo = args.offerPricePerKilo; // This would ideally come from inventory or trader settings
+    // Trader doesn't set an initial price - buyer makes the first offer
+    // Trader will see buyer's offer and can accept/reject/counter
+    // For now, set traderPricePerKilo to 0 (not set) - trader will counter if needed
+    const traderPricePerKilo = 0; // Trader hasn't set a price yet, waiting for buyer offer
 
     // Generate negotiation UTID
     const negotiationUtid = generateUTID(user.role);
 
-    // Create negotiation
+    // Create negotiation - buyer makes first offer
     const negotiationId = await ctx.db.insert("traderBuyerNegotiations", {
       inventoryId: args.inventoryId,
       traderId: inventory.traderId,
       buyerId: args.buyerId,
       status: "pending",
-      traderPricePerKilo: traderPricePerKilo,
+      traderPricePerKilo: traderPricePerKilo, // 0 means trader hasn't set price yet
       buyerOfferPricePerKilo: args.offerPricePerKilo,
-      currentPricePerKilo: args.offerPricePerKilo,
+      currentPricePerKilo: args.offerPricePerKilo, // Start with buyer's offer
       kilos: args.kilos,
       createdAt: getUgandaTime(),
       lastUpdatedAt: getUgandaTime(),

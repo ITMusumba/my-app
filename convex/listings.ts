@@ -31,6 +31,7 @@ export const createListing = mutation({
     pricePerKilo: v.number(), // In UGX
     qualityRating: v.optional(v.string()), // Quality rating from dropdown
     qualityComment: v.optional(v.string()), // Farmer's text comment about produce quality
+    storageLocationId: v.id("storageLocations"), // Storage location (district) where produce will be delivered
   },
   handler: async (ctx, args) => {
     // ============================================================
@@ -78,6 +79,15 @@ export const createListing = mutation({
       ? args.totalKilos 
       : LISTING_UNIT_SIZE_KG;
 
+    // Verify storage location exists and is active
+    const storageLocation = await ctx.db.get(args.storageLocationId);
+    if (!storageLocation) {
+      throw new Error("Storage location not found");
+    }
+    if (!storageLocation.active) {
+      throw new Error("Storage location is not active");
+    }
+
     // Create listing
     const listingId = await ctx.db.insert("listings", {
       farmerId: args.farmerId,
@@ -92,6 +102,7 @@ export const createListing = mutation({
       deliverySLA: 0, // Set when payment is made
       qualityRating: args.qualityRating?.trim() || undefined,
       qualityComment: args.qualityComment?.trim() || undefined,
+      storageLocationId: args.storageLocationId,
     });
 
     // Create individual units
@@ -267,6 +278,29 @@ export const getActiveProduceOptions = query({
       value: opt.value,
       label: opt.label,
       icon: opt.icon,
+    }));
+  },
+});
+
+/**
+ * Get active storage locations (for farmers)
+ * Returns all active storage locations sorted by order
+ */
+export const getActiveStorageLocations = query({
+  args: {},
+  handler: async (ctx) => {
+    const locations = await ctx.db
+      .query("storageLocations")
+      .withIndex("by_active", (q: any) => q.eq("active", true))
+      .collect();
+
+    // Sort by order
+    locations.sort((a, b) => a.order - b.order);
+
+    return locations.map((loc) => ({
+      locationId: loc._id,
+      districtName: loc.districtName,
+      code: loc.code,
     }));
   },
 });

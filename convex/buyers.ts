@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { generateUTID, getUgandaTime } from "./utils";
+import { generateUTID, getUgandaTime, calculateInventoryPricePerKilo, getBuyerServiceFeePercentage } from "./utils";
 import { calculatePickupSLA } from "./utils";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
@@ -123,12 +123,59 @@ export const createBuyerPurchase = mutation({
       status: "sold",
     });
 
-    // Step 2: Generate UTID (only after all validations pass)
+    // Step 2: Calculate purchase price
+    // Calculate base price per kilo from inventory
+    const basePricePerKilo = await calculateInventoryPricePerKilo(ctx, args.inventoryId);
+    
+    // Get service fee percentage
+    const serviceFeePercentage = await getBuyerServiceFeePercentage({ db: ctx.db });
+    
+    // Calculate total cost
+    const baseCost = basePricePerKilo * args.kilos;
+    const serviceFee = (baseCost * serviceFeePercentage) / 100;
+    const totalCost = baseCost + serviceFee;
+
+    // Step 3: Generate UTID (only after all validations pass)
     // UTID is generated here, not earlier, to ensure it's only created
     // on successful purchase. If any validation fails, no UTID is created.
     const purchaseUtid = generateUTID(user.role);
 
-    // Step 3: Create buyer purchase entry
+    // Step 4: Check buyer wallet balance
+    const currentEntries = await ctx.db
+      .query("walletLedger")
+      .withIndex("by_user", (q) => q.eq("userId", args.buyerId))
+      .order("desc")
+      .first();
+
+    const currentBalance = currentEntries?.balanceAfter || 0;
+
+    if (currentBalance < totalCost) {
+      throw new Error(
+        `Insufficient wallet balance. Required: ${totalCost.toFixed(2)} UGX, Available: ${currentBalance.toFixed(2)} UGX`
+      );
+    }
+
+    // Step 5: Create wallet ledger entry for purchase
+    const balanceAfter = currentBalance - totalCost;
+    await ctx.db.insert("walletLedger", {
+      userId: args.buyerId,
+      utid: purchaseUtid,
+      type: "capital_lock", // Using capital_lock for buyer purchases
+      amount: totalCost,
+      balanceAfter,
+      timestamp: purchaseTime,
+      metadata: {
+        type: "buyer_purchase",
+        inventoryId: args.inventoryId,
+        kilos: args.kilos,
+        basePricePerKilo,
+        serviceFeePercentage,
+        serviceFee,
+        totalCost,
+      },
+    });
+
+    // Step 6: Create buyer purchase entry
     await ctx.db.insert("buyerPurchases", {
       buyerId: args.buyerId,
       inventoryId: args.inventoryId,
