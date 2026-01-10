@@ -15,6 +15,7 @@ import { calculateDeliverySLA } from "./utils";
 import { MAX_TRADER_EXPOSURE_UGX, LISTING_UNIT_SIZE_KG } from "./constants";
 import { checkPilotMode } from "./pilotMode";
 import { checkRateLimit } from "./rateLimits";
+import { ensureTraderCapital } from "./wallet";
 import {
   spendCapExceededError,
   insufficientCapitalError,
@@ -43,7 +44,6 @@ async function lockUnitInternal(
 
   // Ensure trader has 1,000,000 UGX capital for demo purchases
   // This ensures traders can always make purchases in pilot mode
-  const { ensureTraderCapital } = await import("./wallet");
   await ensureTraderCapital(ctx, traderId);
 
   // Rate limit check
