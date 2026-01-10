@@ -17,10 +17,14 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   
   const openPurchaseWindow = useMutation(api.admin.openPurchaseWindow);
   const closePurchaseWindow = useMutation(api.admin.closePurchaseWindow);
+  const setPilotMode = useMutation(api.pilotMode.setPilotMode);
   
   const [reason, setReason] = useState("");
   const [windowActionLoading, setWindowActionLoading] = useState(false);
   const [windowActionMessage, setWindowActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pilotModeReason, setPilotModeReason] = useState("");
+  const [pilotModeLoading, setPilotModeLoading] = useState(false);
+  const [pilotModeMessage, setPilotModeMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   return (
     <div>
@@ -291,10 +295,180 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         border: "1px solid #e0e0e0"
       }}>
         <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+          Pilot Mode Control
+        </h3>
+        {pilotMode === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <div>
+            <div style={{
+              padding: "1rem",
+              background: pilotMode.pilotMode ? "#ffebee" : "#e8f5e9",
+              borderRadius: "6px",
+              border: `1px solid ${pilotMode.pilotMode ? "#ef5350" : "#4caf50"}`,
+              marginBottom: "1rem"
+            }}>
+              <div style={{
+                fontSize: "1.1rem",
+                fontWeight: "600",
+                color: pilotMode.pilotMode ? "#c62828" : "#2e7d32",
+                marginBottom: "0.5rem"
+              }}>
+                Status: {pilotMode.pilotMode ? "🔒 ACTIVE (All transactions blocked)" : "✅ INACTIVE (Transactions allowed)"}
+              </div>
+              {pilotMode.pilotMode && pilotMode.reason && (
+                <p style={{ color: "#666", fontSize: "0.9rem", margin: "0.5rem 0 0 0" }}>
+                  Reason: {pilotMode.reason}
+                </p>
+              )}
+              {pilotMode.setAt && (
+                <p style={{ color: "#666", fontSize: "0.85rem", margin: "0.25rem 0 0 0" }}>
+                  Last changed: {new Date(pilotMode.setAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+            
+            <div style={{ marginTop: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+                Reason (required):
+              </label>
+              <textarea
+                value={pilotModeReason}
+                onChange={(e) => setPilotModeReason(e.target.value)}
+                placeholder="Enter reason for enabling/disabling pilot mode..."
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  padding: "0.75rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: "0.9rem",
+                  fontFamily: "inherit",
+                  resize: "vertical"
+                }}
+              />
+              
+              {pilotModeMessage && (
+                <div style={{
+                  marginTop: "0.75rem",
+                  padding: "0.75rem",
+                  background: pilotModeMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                  border: `1px solid ${pilotModeMessage.type === "success" ? "#4caf50" : "#ef5350"}`,
+                  borderRadius: "6px",
+                  color: pilotModeMessage.type === "success" ? "#2e7d32" : "#c62828",
+                  fontSize: "0.9rem"
+                }}>
+                  {pilotModeMessage.text}
+                </div>
+              )}
+              
+              <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem" }}>
+                {pilotMode.pilotMode ? (
+                  <button
+                    onClick={async () => {
+                      if (!pilotModeReason.trim()) {
+                        setPilotModeMessage({ type: "error", text: "Please provide a reason" });
+                        return;
+                      }
+                      setPilotModeLoading(true);
+                      setPilotModeMessage(null);
+                      try {
+                        const result = await setPilotMode({
+                          adminId: userId,
+                          pilotMode: false,
+                          reason: pilotModeReason.trim(),
+                        });
+                        setPilotModeMessage({
+                          type: "success",
+                          text: `Pilot mode disabled successfully! UTID: ${result.utid}. Transactions are now allowed.`
+                        });
+                        setPilotModeReason("");
+                      } catch (error: any) {
+                        setPilotModeMessage({
+                          type: "error",
+                          text: `Failed to disable pilot mode: ${error.message}`
+                        });
+                      } finally {
+                        setPilotModeLoading(false);
+                      }
+                    }}
+                    disabled={pilotModeLoading}
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      background: pilotModeLoading ? "#ccc" : "#4caf50",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      cursor: pilotModeLoading ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {pilotModeLoading ? "Disabling..." : "Disable Pilot Mode (Allow Transactions)"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (!pilotModeReason.trim()) {
+                        setPilotModeMessage({ type: "error", text: "Please provide a reason" });
+                        return;
+                      }
+                      setPilotModeLoading(true);
+                      setPilotModeMessage(null);
+                      try {
+                        const result = await setPilotMode({
+                          adminId: userId,
+                          pilotMode: true,
+                          reason: pilotModeReason.trim(),
+                        });
+                        setPilotModeMessage({
+                          type: "success",
+                          text: `Pilot mode enabled successfully! UTID: ${result.utid}. All transactions are now blocked.`
+                        });
+                        setPilotModeReason("");
+                      } catch (error: any) {
+                        setPilotModeMessage({
+                          type: "error",
+                          text: `Failed to enable pilot mode: ${error.message}`
+                        });
+                      } finally {
+                        setPilotModeLoading(false);
+                      }
+                    }}
+                    disabled={pilotModeLoading}
+                    style={{
+                      padding: "0.75rem 1.5rem",
+                      background: pilotModeLoading ? "#ccc" : "#ef5350",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      cursor: pilotModeLoading ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {pilotModeLoading ? "Enabling..." : "Enable Pilot Mode (Block All Transactions)"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* System Controls (Legacy) */}
+      <div style={{
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
           System Controls
         </h3>
         <p style={{ color: "#666", marginBottom: "1rem" }}>
-          Use Convex dashboard to manage pilot mode and other system settings.
+          Additional system settings can be managed via Convex dashboard.
         </p>
         <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "6px", marginBottom: "1rem" }}>
           <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
