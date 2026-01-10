@@ -10,6 +10,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { getUgandaTime } from "./utils";
 
 /**
  * Get farmer's listings
@@ -96,7 +97,7 @@ export const getActiveNegotiations = query({
       throw new Error("User is not a farmer");
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
 
     // Get all listings for this farmer
     const listings = await ctx.db
@@ -282,7 +283,7 @@ export const getDeliveryDeadlines = query({
       throw new Error("User is not a farmer");
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
 
     // Get all listings for this farmer
     const listings = await ctx.db
@@ -389,7 +390,7 @@ export const getDeliveryStatus = query({
       throw new Error("User is not a farmer");
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
 
     // Get all listings for this farmer
     const listings = await ctx.db
@@ -494,7 +495,7 @@ export const getExpiredUTIDs = query({
       throw new Error("User is not a farmer");
     }
 
-    const now = Date.now();
+    const now = getUgandaTime();
 
     // Get all listings for this farmer
     const listings = await ctx.db
