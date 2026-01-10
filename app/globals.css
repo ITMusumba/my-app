@@ -22,9 +22,9 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+  font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  color: #333;
+  color: #3d3d3d;
   background: #f5f5f5;
   /* Ugandan farming background - real agricultural scene */
   background-image: url('https://images.unsplash.com/photo-1625246333195-78d9c38ad449?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
@@ -33,6 +33,37 @@ body {
   background-attachment: fixed;
   background-repeat: no-repeat;
   position: relative;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Typography hierarchy matching AGRO style */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  color: #2c2c2c;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Bold text for emphasis */
+strong, b {
+  font-weight: 600;
+  color: #2c2c2c;
 }
 
 /* Overlay for better text readability - semi-transparent white */

@@ -60,15 +60,34 @@ async function lockUnitInternal(
     throw new Error("Unit is not available");
   }
 
+  // Check if unit has an accepted negotiation for this trader
+  if (!unit.activeNegotiationId) {
+    throw new Error("No active negotiation found. Please make an offer first.");
+  }
+
+  const negotiation = await ctx.db.get(unit.activeNegotiationId);
+  if (!negotiation) {
+    throw new Error("Negotiation not found");
+  }
+
+  // Verify negotiation is accepted and belongs to this trader
+  if (negotiation.status !== "accepted") {
+    throw new Error(`Cannot lock unit. Negotiation status is: ${negotiation.status}. Please wait for farmer to accept your offer.`);
+  }
+
+  if (negotiation.traderId !== traderId) {
+    throw new Error("This negotiation belongs to another trader. You cannot lock this unit.");
+  }
+
   // Get listing to calculate price
   const listing = await ctx.db.get(unit.listingId);
   if (!listing) {
     throw new Error("Listing not found");
   }
 
-  // Use listing's unitSize (which may be less than 10kg for small listings)
+  // Use negotiated price from accepted negotiation
   const unitSize = listing.unitSize || LISTING_UNIT_SIZE_KG;
-  const unitPrice = listing.pricePerKilo * unitSize;
+  const unitPrice = negotiation.currentPricePerKilo * unitSize;
 
   // Spend cap enforcement
   const exposure = await calculateTraderExposureInternal(ctx, traderId);
@@ -122,6 +141,7 @@ async function lockUnitInternal(
     lockUtid: utid,
     deliveryDeadline: deliveryDeadline,
     deliveryStatus: "pending",
+    activeNegotiationId: undefined, // Clear negotiation after locking
   });
 
   // Update listing status if needed

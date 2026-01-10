@@ -29,6 +29,8 @@ export const createListing = mutation({
     produceType: v.string(),
     totalKilos: v.number(),
     pricePerKilo: v.number(), // In UGX
+    qualityRating: v.optional(v.string()), // Quality rating from dropdown
+    qualityComment: v.optional(v.string()), // Farmer's text comment about produce quality
   },
   handler: async (ctx, args) => {
     // ============================================================
@@ -88,6 +90,8 @@ export const createListing = mutation({
       status: "active",
       createdAt: Date.now(),
       deliverySLA: 0, // Set when payment is made
+      qualityRating: args.qualityRating?.trim() || undefined,
+      qualityComment: args.qualityComment?.trim() || undefined,
     });
 
     // Create individual units
@@ -219,5 +223,50 @@ export const getFirstAvailableUnit = query({
       unitId: availableUnit._id,
       unitNumber: availableUnit.unitNumber,
     };
+  },
+});
+
+/**
+ * Get active quality options (for farmers)
+ * Returns all active quality options sorted by order
+ */
+export const getActiveQualityOptions = query({
+  args: {},
+  handler: async (ctx) => {
+    const options = await ctx.db
+      .query("qualityOptions")
+      .withIndex("by_active", (q: any) => q.eq("active", true))
+      .collect();
+
+    // Sort by order
+    options.sort((a, b) => a.order - b.order);
+
+    return options.map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+    }));
+  },
+});
+
+/**
+ * Get active produce options (for farmers)
+ * Returns all active produce options sorted by order
+ */
+export const getActiveProduceOptions = query({
+  args: {},
+  handler: async (ctx) => {
+    const options = await ctx.db
+      .query("produceOptions")
+      .withIndex("by_active", (q: any) => q.eq("active", true))
+      .collect();
+
+    // Sort by order
+    options.sort((a, b) => a.order - b.order);
+
+    return options.map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+      icon: opt.icon,
+    }));
   },
 });

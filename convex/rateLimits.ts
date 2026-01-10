@@ -39,7 +39,7 @@ function getRateLimitConfig(
 ): RateLimitConfig | null {
   // Trader limits
   if (role === "trader") {
-    if (actionType === "lock_unit") {
+    if (actionType === "lock_unit" || actionType === "make_offer") {
       return {
         limit: RATE_LIMITS.TRADER_NEGOTIATIONS_PER_HOUR,
         windowMs: 60 * 60 * 1000, // 1 hour
@@ -111,6 +111,21 @@ async function countActionsInWindow(
     });
 
     return unitsInWindow.length;
+  }
+
+  // Trader: make_offer (negotiations)
+  if (actionType === "make_offer") {
+    // Count negotiations created in the window
+    const allNegotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_trader_status", (q) => q.eq("traderId", userId))
+      .collect();
+
+    const negotiationsInWindow = allNegotiations.filter((neg) => {
+      return neg.createdAt >= windowStart && neg.createdAt <= windowEnd;
+    });
+
+    return negotiationsInWindow.length;
   }
 
   // Trader: wallet operations

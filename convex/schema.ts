@@ -28,6 +28,7 @@ export default defineSchema({
     createdAt: v.number(),
     lastActiveAt: v.number(),
     passwordHash: v.optional(v.string()), // Secure password hash (bcrypt/argon2). Required for production authentication.
+    customSpendCap: v.optional(v.number()), // Admin-set custom spend cap for traders (in UGX). If not set, uses default MAX_TRADER_EXPOSURE_UGX.
   })
     .index("by_email", ["email"])
     .index("by_role", ["role"])
@@ -80,6 +81,8 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     deliverySLA: v.number(), // Timestamp: 6 hours after payment
+    qualityRating: v.optional(v.string()), // Quality rating from admin-managed dropdown (e.g., "Premium", "Good", "Fair")
+    qualityComment: v.optional(v.string()), // Farmer's text comment about produce quality
   })
     .index("by_farmer", ["farmerId"])
     .index("by_utid", ["utid"])
@@ -89,6 +92,7 @@ export default defineSchema({
    * Listing units (10kg each)
    * - Each unit can be locked independently
    * - Locking requires atomic payment
+   * - Units can have active negotiations before locking
    */
   listingUnits: defineTable({
     listingId: v.id("listings"),
@@ -110,11 +114,54 @@ export default defineSchema({
       v.literal("late"),
       v.literal("cancelled")
     )), // Tracks delivery status for SLA monitoring
+    // Negotiation tracking
+    activeNegotiationId: v.optional(v.id("negotiations")), // Active negotiation for this unit
   })
     .index("by_listing", ["listingId"])
     .index("by_status", ["status"])
     .index("by_lock_utid", ["lockUtid"])
-    .index("by_delivery_status", ["deliveryStatus"]),
+    .index("by_delivery_status", ["deliveryStatus"])
+    .index("by_active_negotiation", ["activeNegotiationId"]),
+
+  /**
+   * Negotiations/Offers
+   * - Traders make offers on units
+   * - Farmers can accept, reject, or counter-offer
+   * - Only accepted offers can proceed to pay-to-lock
+   */
+  negotiations: defineTable({
+    unitId: v.id("listingUnits"),
+    listingId: v.id("listings"),
+    traderId: v.id("users"),
+    farmerId: v.id("users"),
+    status: v.union(
+      v.literal("pending"), // Trader made offer, waiting for farmer response
+      v.literal("accepted"), // Farmer accepted, trader can now pay-to-lock
+      v.literal("rejected"), // Farmer rejected
+      v.literal("countered"), // Farmer made counter-offer, waiting for trader
+      v.literal("expired"), // Negotiation expired (timeout)
+      v.literal("cancelled") // Negotiation cancelled
+    ),
+    // Price negotiation
+    farmerPricePerKilo: v.number(), // Original listing price
+    traderOfferPricePerKilo: v.number(), // Trader's offer price
+    currentPricePerKilo: v.number(), // Current negotiated price (may be counter-offer)
+    // Timestamps
+    createdAt: v.number(), // When negotiation started
+    lastUpdatedAt: v.number(), // Last update timestamp
+    expiresAt: v.optional(v.number()), // Optional expiration (e.g., 24 hours)
+    // UTIDs
+    negotiationUtid: v.string(), // UTID for this negotiation
+    acceptedUtid: v.optional(v.string()), // UTID when accepted (for pay-to-lock)
+  })
+    .index("by_unit", ["unitId"])
+    .index("by_listing", ["listingId"])
+    .index("by_trader", ["traderId"])
+    .index("by_farmer", ["farmerId"])
+    .index("by_status", ["status"])
+    .index("by_utid", ["negotiationUtid"])
+    .index("by_trader_status", ["traderId", "status"])
+    .index("by_farmer_status", ["farmerId", "status"]),
 
   /**
    * Trader inventory
@@ -239,6 +286,37 @@ export default defineSchema({
     .index("by_utid", ["utid"]),
 
   /**
+   * Payment transactions (Pesapal integration)
+   * - Tracks external payment provider transactions
+   * - Links to wallet deposits
+   * - Stores payment status and callback data
+   */
+  paymentTransactions: defineTable({
+    userId: v.id("users"), // Trader or buyer making payment
+    userRole: v.union(v.literal("trader"), v.literal("buyer")),
+    amount: v.number(), // Amount in UGX
+    currency: v.string(), // Currency code (e.g., "UGX")
+    pesapalOrderTrackingId: v.string(), // Pesapal order tracking ID
+    pesapalPaymentReference: v.optional(v.string()), // Pesapal payment reference
+    status: v.union(
+      v.literal("pending"), // Payment initiated, awaiting completion
+      v.literal("completed"), // Payment completed, wallet credited
+      v.literal("failed"), // Payment failed
+      v.literal("cancelled") // Payment cancelled by user
+    ),
+    redirectUrl: v.string(), // Pesapal redirect URL for payment
+    callbackUrl: v.string(), // Callback URL for payment confirmation
+    walletDepositUtid: v.optional(v.string()), // UTID of wallet deposit entry (after payment confirmation)
+    metadata: v.optional(v.any()), // Additional payment metadata
+    createdAt: v.number(), // Payment initiation timestamp
+    completedAt: v.optional(v.number()), // Payment completion timestamp
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_pesapal_order", ["pesapalOrderTrackingId"])
+    .index("by_wallet_utid", ["walletDepositUtid"]),
+
+  /**
    * System settings
    * - Global system configuration
    * - Admin-controlled flags
@@ -250,7 +328,43 @@ export default defineSchema({
     setAt: v.number(), // Timestamp when flag was set
     reason: v.string(), // Reason for setting flag
     utid: v.string(), // Admin action UTID
+    storageFeeRateKgPerDay: v.optional(v.number()), // Kilo-shaving rate (kilos per day per 100kg block). Default: 0.5
+    buyerServiceFeePercentage: v.optional(v.number()), // Service fee percentage added to purchase price for buyers. Default: 3
   }),
+
+  /**
+   * Quality options for produce quality ratings
+   * - Admin-managed dropdown options for farmers to select
+   * - Used when farmers create listings to rate produce quality
+   */
+  qualityOptions: defineTable({
+    label: v.string(), // Display label (e.g., "Premium", "Good", "Fair", "Poor")
+    value: v.string(), // Unique value identifier (e.g., "premium", "good", "fair", "poor")
+    order: v.number(), // Display order (lower numbers appear first)
+    active: v.boolean(), // Whether this option is currently active/available
+    createdAt: v.number(),
+    createdBy: v.id("users"), // Admin who created this option
+  })
+    .index("by_active", ["active"])
+    .index("by_order", ["order"]),
+
+  /**
+   * Produce options for produce type selection
+   * - Admin-managed produce icons/types that farmers can select
+   * - Used when farmers create listings to choose produce type
+   * - Icons and labels are configurable by admin based on real-life operations
+   */
+  produceOptions: defineTable({
+    label: v.string(), // Display label (e.g., "Banana", "Maize", "Beans")
+    value: v.string(), // Unique value identifier (e.g., "Banana", "Maize", "Beans")
+    icon: v.string(), // Emoji icon (e.g., "🍌", "🌽", "🫘")
+    order: v.number(), // Display order (lower numbers appear first)
+    active: v.boolean(), // Whether this option is currently active/available
+    createdAt: v.number(),
+    createdBy: v.id("users"), // Admin who created this option
+  })
+    .index("by_active", ["active"])
+    .index("by_order", ["order"]),
 
   /**
    * Rate limit hits log

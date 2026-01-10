@@ -1,0 +1,484 @@
+/**
+ * Pesapal Payment Integration
+ * 
+ * Handles Pesapal API integration for wallet deposits
+ * - Authentication with Pesapal API
+ * - Payment initiation
+ * - Payment status verification
+ * - Webhook/callback handling
+ */
+
+import { v } from "convex/values";
+import { action, internalAction, mutation, internalMutation, query, internalQuery } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import { generateUTID } from "./utils";
+import { checkPilotMode } from "./pilotMode";
+
+// Pesapal API Configuration
+const PESAPAL_BASE_URL = process.env.PESAPAL_ENV === "production" 
+  ? "https://pay.pesapal.com/v3"
+  : "https://cybqa.pesapal.com/pesapalv3";
+
+const PESAPAL_CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY || "1DDecquMxaWUxGjWg+g3SQSkgRRmV3hs";
+const PESAPAL_CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET || "WpmXyvPsYE872GO7WY/wjpoSrm8=";
+
+/**
+ * Get Pesapal access token
+ * This is a Convex action because it needs to make external HTTP requests
+ * Internal helper function to avoid circular references
+ */
+export const getPesapalAccessToken = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    try {
+      const response = await fetch(`${PESAPAL_BASE_URL}/api/Auth/RequestToken`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          consumer_key: PESAPAL_CONSUMER_KEY,
+          consumer_secret: PESAPAL_CONSUMER_SECRET,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Pesapal authentication failed: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return {
+        token: data.token,
+        expiresIn: data.expires_in || 3600,
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get Pesapal access token: ${error.message}`);
+    }
+  },
+});
+
+/**
+ * Initiate Pesapal payment
+ * Creates a payment transaction and returns Pesapal redirect URL
+ */
+export const initiatePesapalPayment = action({
+  args: {
+    userId: v.id("users"),
+    userRole: v.union(v.literal("trader"), v.literal("buyer")),
+    amount: v.number(),
+    currency: v.string(),
+    callbackUrl: v.string(),
+    cancelUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ transactionId: any; orderTrackingId: string; redirectUrl: string }> => {
+    // Get access token
+    const { token }: { token: string; expiresIn: number } = await ctx.runAction(internal.pesapal.getPesapalAccessToken, {});
+
+    // Get user details
+    const user: { id: any; email: string; role: string; alias: string } | null = await ctx.runQuery(api.pesapal.getUserDetails, { userId: args.userId });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.role !== args.userRole) {
+      throw new Error(`User role mismatch. Expected ${args.userRole}, got ${user.role}`);
+    }
+
+    // Generate unique order tracking ID
+    const orderTrackingId = `F2M-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // Prepare payment request
+    const paymentRequest = {
+      id: orderTrackingId,
+      currency: args.currency || "UGX",
+      amount: args.amount,
+      description: `Wallet deposit for ${args.userRole}`,
+      callback_url: args.callbackUrl,
+      cancellation_url: args.cancelUrl,
+      notification_id: "", // Will be set up separately for webhooks
+      billing_address: {
+        email_address: user.email,
+        phone_number: "", // Optional
+        country_code: "UG",
+        first_name: user.alias || "User",
+        middle_name: "",
+        last_name: "",
+        line_1: "",
+        line_2: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        zip_code: "",
+      },
+    };
+
+    // Submit payment request to Pesapal
+    const response: Response = await fetch(`${PESAPAL_BASE_URL}/api/Transactions/SubmitOrderRequest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(paymentRequest),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Pesapal payment initiation failed: ${response.status} ${errorText}`);
+    }
+
+    const paymentData: any = await response.json();
+
+    // Create payment transaction record
+    const transactionId: any = await ctx.runMutation(internal.pesapal.createPaymentTransaction, {
+      userId: args.userId,
+      userRole: args.userRole,
+      amount: args.amount,
+      currency: args.currency || "UGX",
+      pesapalOrderTrackingId: orderTrackingId,
+      redirectUrl: paymentData.redirect_url || "",
+      callbackUrl: args.callbackUrl,
+    });
+
+    return {
+      transactionId,
+      orderTrackingId,
+      redirectUrl: paymentData.redirect_url || paymentData.redirectUrl || "",
+    };
+  },
+});
+
+/**
+ * Get user details (helper query)
+ * Public query for use by wrapper actions
+ */
+export const getUserDetails = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return null;
+    }
+    return {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      alias: user.alias,
+    };
+  },
+});
+
+/**
+ * Create payment transaction record
+ * Internal helper function to avoid circular references
+ */
+export const createPaymentTransaction = internalMutation({
+  args: {
+    userId: v.id("users"),
+    userRole: v.union(v.literal("trader"), v.literal("buyer")),
+    amount: v.number(),
+    currency: v.string(),
+    pesapalOrderTrackingId: v.string(),
+    redirectUrl: v.string(),
+    callbackUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const transactionId = await ctx.db.insert("paymentTransactions", {
+      userId: args.userId,
+      userRole: args.userRole,
+      amount: args.amount,
+      currency: args.currency,
+      pesapalOrderTrackingId: args.pesapalOrderTrackingId,
+      redirectUrl: args.redirectUrl,
+      callbackUrl: args.callbackUrl,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+
+    return transactionId;
+  },
+});
+
+/**
+ * Verify payment status from Pesapal
+ * Called after user returns from Pesapal payment page
+ */
+export const verifyPesapalPayment = action({
+  args: {
+    orderTrackingId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ status: string; orderTrackingId: string }> => {
+    // Get access token
+    const { token }: { token: string; expiresIn: number } = await ctx.runAction(internal.pesapal.getPesapalAccessToken, {});
+
+    // Get payment status from Pesapal
+    const response: Response = await fetch(
+      `${PESAPAL_BASE_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${args.orderTrackingId}`,
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Pesapal payment verification failed: ${response.status} ${errorText}`);
+    }
+
+    const paymentStatus: any = await response.json();
+
+    // Update payment transaction and complete wallet deposit
+    await ctx.runMutation(internal.pesapal.completePaymentTransaction, {
+      orderTrackingId: args.orderTrackingId,
+      paymentStatus: paymentStatus,
+    });
+
+    return {
+      status: paymentStatus.payment_status_description || paymentStatus.status || "unknown",
+      orderTrackingId: args.orderTrackingId,
+    };
+  },
+});
+
+/**
+ * Complete payment transaction and credit wallet
+ * Internal helper function to avoid circular references
+ */
+export const completePaymentTransaction = internalMutation({
+  args: {
+    orderTrackingId: v.string(),
+    paymentStatus: v.any(),
+  },
+  handler: async (ctx, args) => {
+    // Find payment transaction
+    const transaction = await ctx.db
+      .query("paymentTransactions")
+      .withIndex("by_pesapal_order", (q) => q.eq("pesapalOrderTrackingId", args.orderTrackingId))
+      .first();
+
+    if (!transaction) {
+      throw new Error(`Payment transaction not found: ${args.orderTrackingId}`);
+    }
+
+    // Check if already completed
+    if (transaction.status === "completed") {
+      return { alreadyCompleted: true, walletDepositUtid: transaction.walletDepositUtid };
+    }
+
+    // Determine payment status
+    const pesapalStatus = args.paymentStatus.payment_status_description || args.paymentStatus.status || "";
+    const isCompleted = pesapalStatus.toLowerCase().includes("completed") || 
+                       pesapalStatus.toLowerCase() === "completed" ||
+                       args.paymentStatus.payment_status_code === "1";
+
+    if (!isCompleted) {
+      // Payment not completed - update status only
+      await ctx.db.patch(transaction._id, {
+        status: pesapalStatus.toLowerCase().includes("failed") ? "failed" : "cancelled",
+        completedAt: Date.now(),
+        metadata: {
+          pesapalResponse: args.paymentStatus,
+        },
+      });
+      return { completed: false, status: transaction.status };
+    }
+
+    // Payment completed - credit wallet
+    // Check pilot mode (deposit moves money)
+    await checkPilotMode(ctx);
+
+    // Generate UTID for wallet deposit
+    const depositUtid = generateUTID(transaction.userRole);
+
+    // Get current wallet balance
+    const currentEntries = await ctx.db
+      .query("walletLedger")
+      .withIndex("by_user", (q) => q.eq("userId", transaction.userId))
+      .order("desc")
+      .first();
+
+    const balanceAfter = currentEntries
+      ? currentEntries.balanceAfter + transaction.amount
+      : transaction.amount;
+
+    // Create wallet deposit entry
+    await ctx.db.insert("walletLedger", {
+      userId: transaction.userId,
+      utid: depositUtid,
+      type: "capital_deposit",
+      amount: transaction.amount,
+      balanceAfter,
+      timestamp: Date.now(),
+      metadata: {
+        source: "pesapal_payment",
+        pesapalOrderTrackingId: args.orderTrackingId,
+        paymentReference: args.paymentStatus.payment_reference || null,
+      },
+    });
+
+    // Update payment transaction
+    await ctx.db.patch(transaction._id, {
+      status: "completed",
+      walletDepositUtid: depositUtid,
+      pesapalPaymentReference: args.paymentStatus.payment_reference || null,
+      completedAt: Date.now(),
+      metadata: {
+        pesapalResponse: args.paymentStatus,
+        walletBalanceAfter: balanceAfter,
+      },
+    });
+
+    return {
+      completed: true,
+      walletDepositUtid: depositUtid,
+      balanceAfter,
+    };
+  },
+});
+
+/**
+ * Get payment transaction status
+ */
+export const getPaymentTransactionStatus = query({
+  args: {
+    transactionId: v.id("paymentTransactions"),
+  },
+  handler: async (ctx, args) => {
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction) {
+      return null;
+    }
+
+    return {
+      transactionId: transaction._id,
+      status: transaction.status,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      pesapalOrderTrackingId: transaction.pesapalOrderTrackingId,
+      walletDepositUtid: transaction.walletDepositUtid,
+      createdAt: transaction.createdAt,
+      completedAt: transaction.completedAt,
+    };
+  },
+});
+
+/**
+ * Get user's payment transactions
+ */
+export const getUserPaymentTransactions = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("paymentTransactions")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
+
+    return transactions.map((t) => ({
+      transactionId: t._id,
+      amount: t.amount,
+      currency: t.currency,
+      status: t.status,
+      pesapalOrderTrackingId: t.pesapalOrderTrackingId,
+      walletDepositUtid: t.walletDepositUtid,
+      createdAt: t.createdAt,
+      completedAt: t.completedAt,
+    }));
+  },
+});
+
+/**
+ * Webhook handler for Pesapal payment notifications
+ * This is called by Pesapal when payment status changes
+ */
+export const handlePesapalWebhook = action({
+  args: {
+    orderTrackingId: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ success: boolean; message: string }> => {
+    try {
+      // Verify payment status from Pesapal
+      const result = await ctx.runAction(api.pesapal.verifyPesapalPayment, {
+        orderTrackingId: args.orderTrackingId,
+      });
+
+      return {
+        success: true,
+        message: `Payment ${result.status} for order ${args.orderTrackingId}`,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Webhook processing failed: ${error.message}`,
+      };
+    }
+  },
+});
+
+/**
+ * Wrapper action for trader deposits via Pesapal
+ */
+export const initiateTraderDeposit = action({
+  args: {
+    traderId: v.id("users"),
+    amount: v.number(),
+    currency: v.optional(v.string()),
+    callbackUrl: v.string(),
+    cancelUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ transactionId: any; orderTrackingId: string; redirectUrl: string }> => {
+    // Verify user is a trader
+    const user = await ctx.runQuery(api.pesapal.getUserDetails, { userId: args.traderId });
+    if (!user || user.role !== "trader") {
+      throw new Error("User is not a trader");
+    }
+
+    return await ctx.runAction(api.pesapal.initiatePesapalPayment, {
+      userId: args.traderId,
+      userRole: "trader",
+      amount: args.amount,
+      currency: args.currency || "UGX",
+      callbackUrl: args.callbackUrl,
+      cancelUrl: args.cancelUrl,
+    });
+  },
+});
+
+/**
+ * Wrapper action for buyer deposits via Pesapal
+ */
+export const initiateBuyerDeposit = action({
+  args: {
+    buyerId: v.id("users"),
+    amount: v.number(),
+    currency: v.optional(v.string()),
+    callbackUrl: v.string(),
+    cancelUrl: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ transactionId: any; orderTrackingId: string; redirectUrl: string }> => {
+    // Verify user is a buyer
+    const user = await ctx.runQuery(api.pesapal.getUserDetails, { userId: args.buyerId });
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    return await ctx.runAction(api.pesapal.initiatePesapalPayment, {
+      userId: args.buyerId,
+      userRole: "buyer",
+      amount: args.amount,
+      currency: args.currency || "UGX",
+      callbackUrl: args.callbackUrl,
+      cancelUrl: args.cancelUrl,
+    });
+  },
+});

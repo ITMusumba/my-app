@@ -9,8 +9,9 @@
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { generateUTID } from "./utils";
-import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
+import { generateUTID, getStorageFeeRate, getBuyerServiceFeePercentage } from "./utils";
+import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY, DEFAULT_BUYER_SERVICE_FEE_PERCENTAGE } from "./constants";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Verify user is admin
@@ -536,5 +537,642 @@ export const resetAllTransactions = mutation({
         results,
       };
     }
+  },
+});
+
+// Import getStorageFeeRate from utils
+import { getStorageFeeRate } from "./utils";
+
+/**
+ * Update kilo-shaving rate (admin only)
+ * Changes the storage fee rate (kilos per day per 100kg block)
+ */
+export const updateKiloShavingRate = mutation({
+  args: {
+    adminId: v.id("users"),
+    rateKgPerDay: v.number(), // New rate in kilos per day per 100kg block
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (args.rateKgPerDay < 0) {
+      throw new Error("Storage fee rate cannot be negative");
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_kilo_shaving_rate",
+      args.reason,
+      undefined,
+      {
+        previousRate: await getStorageFeeRate({ db: ctx.db }),
+        newRate: args.rateKgPerDay,
+      }
+    );
+
+    // Get or create system settings
+    let settings = await ctx.db.query("systemSettings").first();
+    if (!settings) {
+      // Create initial settings record
+      await ctx.db.insert("systemSettings", {
+        pilotMode: false,
+        setBy: args.adminId,
+        setAt: Date.now(),
+        reason: "Initial system settings",
+        utid: generateUTID("admin"),
+        storageFeeRateKgPerDay: args.rateKgPerDay,
+      });
+    } else {
+      // Update existing settings
+      await ctx.db.patch(settings._id, {
+        storageFeeRateKgPerDay: args.rateKgPerDay,
+      });
+    }
+
+    return { utid, rateKgPerDay: args.rateKgPerDay };
+  },
+});
+
+/**
+ * Get current kilo-shaving rate (admin only)
+ */
+export const getKiloShavingRate = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+    const rate = await getStorageFeeRate({ db: ctx.db });
+    return { rateKgPerDay: rate };
+  },
+});
+
+/**
+ * Update buyer service fee percentage (admin only)
+ * Changes the service fee percentage added to purchase price for buyers
+ */
+export const updateBuyerServiceFeePercentage = mutation({
+  args: {
+    adminId: v.id("users"),
+    serviceFeePercentage: v.number(), // New service fee percentage (e.g., 3 for 3%)
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (args.serviceFeePercentage < 0 || args.serviceFeePercentage > 100) {
+      throw new Error("Service fee percentage must be between 0 and 100");
+    }
+
+    const previousFee = await getBuyerServiceFeePercentage({ db: ctx.db });
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_buyer_service_fee_percentage",
+      args.reason,
+      undefined,
+      {
+        previousFee,
+        newFee: args.serviceFeePercentage,
+      }
+    );
+
+    // Get or create system settings
+    let settings = await ctx.db.query("systemSettings").first();
+    if (!settings) {
+      // Create initial settings record
+      await ctx.db.insert("systemSettings", {
+        pilotMode: false,
+        setBy: args.adminId,
+        setAt: Date.now(),
+        reason: "Initial system settings",
+        utid: generateUTID("admin"),
+        buyerServiceFeePercentage: args.serviceFeePercentage,
+      });
+    } else {
+      // Update existing settings
+      await ctx.db.patch(settings._id, {
+        buyerServiceFeePercentage: args.serviceFeePercentage,
+      });
+    }
+
+    return { utid, serviceFeePercentage: args.serviceFeePercentage };
+  },
+});
+
+/**
+ * Get current buyer service fee percentage (admin only)
+ */
+export const getBuyerServiceFeePercentageQuery = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+    const fee = await getBuyerServiceFeePercentage({ db: ctx.db });
+    return { serviceFeePercentage: fee };
+  },
+});
+
+/**
+ * Update trader spend cap (admin only)
+ * Sets a custom spend cap for a specific trader
+ */
+export const updateTraderSpendCap = mutation({
+  args: {
+    adminId: v.id("users"),
+    traderId: v.id("users"),
+    spendCap: v.optional(v.number()), // New spend cap in UGX. If not provided, resets to default.
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const trader = await ctx.db.get(args.traderId);
+    if (!trader) {
+      throw new Error("Trader not found");
+    }
+
+    if (trader.role !== "trader") {
+      throw new Error("User is not a trader");
+    }
+
+    if (args.spendCap !== undefined && args.spendCap < 0) {
+      throw new Error("Spend cap cannot be negative");
+    }
+
+    const previousSpendCap = trader.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
+    const newSpendCap = args.spendCap ?? null; // null means reset to default
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_trader_spend_cap",
+      args.reason,
+      undefined,
+      {
+        traderId: args.traderId,
+        traderAlias: trader.alias,
+        previousSpendCap,
+        newSpendCap: newSpendCap ?? MAX_TRADER_EXPOSURE_UGX,
+        resetToDefault: newSpendCap === null,
+      }
+    );
+
+    // Update trader's custom spend cap
+    if (newSpendCap === null) {
+      // Reset to default (remove custom cap)
+      await ctx.db.patch(args.traderId, {
+        customSpendCap: undefined,
+      });
+    } else {
+      // Set custom cap
+      await ctx.db.patch(args.traderId, {
+        customSpendCap: newSpendCap,
+      });
+    }
+
+    return {
+      utid,
+      traderId: args.traderId,
+      traderAlias: trader.alias,
+      spendCap: newSpendCap ?? MAX_TRADER_EXPOSURE_UGX,
+      isCustom: newSpendCap !== null,
+    };
+  },
+});
+
+/**
+ * Get trader spend cap (admin only)
+ */
+export const getTraderSpendCap = query({
+  args: {
+    adminId: v.id("users"),
+    traderId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const trader = await ctx.db.get(args.traderId);
+    if (!trader) {
+      throw new Error("Trader not found");
+    }
+
+    if (trader.role !== "trader") {
+      throw new Error("User is not a trader");
+    }
+
+    const spendCap = trader.customSpendCap || MAX_TRADER_EXPOSURE_UGX;
+
+    return {
+      traderId: args.traderId,
+      traderAlias: trader.alias,
+      spendCap,
+      isCustom: trader.customSpendCap !== undefined,
+    };
+  },
+});
+
+/**
+ * Get all quality options (admin only)
+ * Returns all quality options sorted by order
+ */
+export const getQualityOptions = query({
+  args: {
+    adminId: v.id("users"),
+    activeOnly: v.optional(v.boolean()), // If true, only return active options
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    let options;
+    if (args.activeOnly) {
+      options = await ctx.db
+        .query("qualityOptions")
+        .withIndex("by_active", (q: any) => q.eq("active", true))
+        .collect();
+    } else {
+      options = await ctx.db.query("qualityOptions").collect();
+    }
+
+    // Sort by order
+    options.sort((a, b) => a.order - b.order);
+
+    return options.map((opt) => ({
+      optionId: opt._id,
+      label: opt.label,
+      value: opt.value,
+      order: opt.order,
+      active: opt.active,
+      createdAt: opt.createdAt,
+      createdBy: opt.createdBy,
+    }));
+  },
+});
+
+/**
+ * Add quality option (admin only)
+ */
+export const addQualityOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    label: v.string(),
+    value: v.string(),
+    order: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (!args.label.trim()) {
+      throw new Error("Label is required");
+    }
+    if (!args.value.trim()) {
+      throw new Error("Value is required");
+    }
+
+    // Check if value already exists
+    const existing = await ctx.db
+      .query("qualityOptions")
+      .collect();
+    
+    const valueExists = existing.some((opt) => opt.value === args.value.trim());
+    if (valueExists) {
+      throw new Error(`Quality option with value "${args.value}" already exists`);
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "add_quality_option",
+      args.reason,
+      undefined,
+      {
+        label: args.label,
+        value: args.value,
+        order: args.order,
+      }
+    );
+
+    const optionId = await ctx.db.insert("qualityOptions", {
+      label: args.label.trim(),
+      value: args.value.trim(),
+      order: args.order,
+      active: true,
+      createdAt: Date.now(),
+      createdBy: args.adminId,
+    });
+
+    return { utid, optionId, label: args.label.trim(), value: args.value.trim() };
+  },
+});
+
+/**
+ * Update quality option (admin only)
+ */
+export const updateQualityOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    optionId: v.id("qualityOptions"),
+    label: v.optional(v.string()),
+    order: v.optional(v.number()),
+    active: v.optional(v.boolean()),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const option = await ctx.db.get(args.optionId);
+    if (!option) {
+      throw new Error("Quality option not found");
+    }
+
+    const previousState = {
+      label: option.label,
+      order: option.order,
+      active: option.active,
+    };
+
+    const updates: any = {};
+    if (args.label !== undefined) {
+      if (!args.label.trim()) {
+        throw new Error("Label cannot be empty");
+      }
+      updates.label = args.label.trim();
+    }
+    if (args.order !== undefined) {
+      updates.order = args.order;
+    }
+    if (args.active !== undefined) {
+      updates.active = args.active;
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_quality_option",
+      args.reason,
+      undefined,
+      {
+        optionId: args.optionId,
+        previousState,
+        newState: updates,
+      }
+    );
+
+    await ctx.db.patch(args.optionId, updates);
+
+    return { utid, optionId: args.optionId, updates };
+  },
+});
+
+/**
+ * Delete quality option (admin only)
+ * Note: This is a soft delete - sets active to false
+ */
+export const deleteQualityOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    optionId: v.id("qualityOptions"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const option = await ctx.db.get(args.optionId);
+    if (!option) {
+      throw new Error("Quality option not found");
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "delete_quality_option",
+      args.reason,
+      undefined,
+      {
+        optionId: args.optionId,
+        label: option.label,
+        value: option.value,
+      }
+    );
+
+    // Soft delete - set active to false
+    await ctx.db.patch(args.optionId, {
+      active: false,
+    });
+
+    return { utid, optionId: args.optionId };
+  },
+});
+
+/**
+ * Get all produce options (admin only)
+ * Returns all produce options sorted by order
+ */
+export const getProduceOptions = query({
+  args: {
+    adminId: v.id("users"),
+    activeOnly: v.optional(v.boolean()), // If true, only return active options
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    let options;
+    if (args.activeOnly) {
+      options = await ctx.db
+        .query("produceOptions")
+        .withIndex("by_active", (q: any) => q.eq("active", true))
+        .collect();
+    } else {
+      options = await ctx.db.query("produceOptions").collect();
+    }
+
+    // Sort by order
+    options.sort((a, b) => a.order - b.order);
+
+    return options.map((opt) => ({
+      optionId: opt._id,
+      label: opt.label,
+      value: opt.value,
+      icon: opt.icon,
+      order: opt.order,
+      active: opt.active,
+      createdAt: opt.createdAt,
+      createdBy: opt.createdBy,
+    }));
+  },
+});
+
+/**
+ * Add produce option (admin only)
+ */
+export const addProduceOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    label: v.string(),
+    value: v.string(),
+    icon: v.string(), // Emoji icon
+    order: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (!args.label.trim()) {
+      throw new Error("Label is required");
+    }
+    if (!args.value.trim()) {
+      throw new Error("Value is required");
+    }
+    if (!args.icon.trim()) {
+      throw new Error("Icon is required");
+    }
+
+    // Check if value already exists
+    const existing = await ctx.db
+      .query("produceOptions")
+      .collect();
+    
+    const valueExists = existing.some((opt) => opt.value === args.value.trim());
+    if (valueExists) {
+      throw new Error(`Produce option with value "${args.value}" already exists`);
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "add_produce_option",
+      args.reason,
+      undefined,
+      {
+        label: args.label,
+        value: args.value,
+        icon: args.icon,
+        order: args.order,
+      }
+    );
+
+    const optionId = await ctx.db.insert("produceOptions", {
+      label: args.label.trim(),
+      value: args.value.trim(),
+      icon: args.icon.trim(),
+      order: args.order,
+      active: true,
+      createdAt: Date.now(),
+      createdBy: args.adminId,
+    });
+
+    return { utid, optionId, label: args.label.trim(), value: args.value.trim(), icon: args.icon.trim() };
+  },
+});
+
+/**
+ * Update produce option (admin only)
+ */
+export const updateProduceOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    optionId: v.id("produceOptions"),
+    label: v.optional(v.string()),
+    icon: v.optional(v.string()),
+    order: v.optional(v.number()),
+    active: v.optional(v.boolean()),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const option = await ctx.db.get(args.optionId);
+    if (!option) {
+      throw new Error("Produce option not found");
+    }
+
+    const previousState = {
+      label: option.label,
+      icon: option.icon,
+      order: option.order,
+      active: option.active,
+    };
+
+    const updates: any = {};
+    if (args.label !== undefined) {
+      if (!args.label.trim()) {
+        throw new Error("Label cannot be empty");
+      }
+      updates.label = args.label.trim();
+    }
+    if (args.icon !== undefined) {
+      if (!args.icon.trim()) {
+        throw new Error("Icon cannot be empty");
+      }
+      updates.icon = args.icon.trim();
+    }
+    if (args.order !== undefined) {
+      updates.order = args.order;
+    }
+    if (args.active !== undefined) {
+      updates.active = args.active;
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "update_produce_option",
+      args.reason,
+      undefined,
+      {
+        optionId: args.optionId,
+        previousState,
+        newState: updates,
+      }
+    );
+
+    await ctx.db.patch(args.optionId, updates);
+
+    return { utid, optionId: args.optionId, updates };
+  },
+});
+
+/**
+ * Delete produce option (admin only)
+ * Note: This is a soft delete - sets active to false
+ */
+export const deleteProduceOption = mutation({
+  args: {
+    adminId: v.id("users"),
+    optionId: v.id("produceOptions"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const option = await ctx.db.get(args.optionId);
+    if (!option) {
+      throw new Error("Produce option not found");
+    }
+
+    const utid = await logAdminAction(
+      ctx,
+      args.adminId,
+      "delete_produce_option",
+      args.reason,
+      undefined,
+      {
+        optionId: args.optionId,
+        label: option.label,
+        value: option.value,
+      }
+    );
+
+    // Soft delete - set active to false
+    await ctx.db.patch(args.optionId, {
+      active: false,
+    });
+
+    return { utid, optionId: args.optionId };
   },
 });

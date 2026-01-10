@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
+import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
 
 interface AdminDashboardProps {
   userId: Id<"users">;
@@ -18,6 +19,21 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   const openPurchaseWindow = useMutation(api.admin.openPurchaseWindow);
   const closePurchaseWindow = useMutation(api.admin.closePurchaseWindow);
   const setPilotMode = useMutation(api.pilotMode.setPilotMode);
+  const updateKiloShavingRate = useMutation(api.admin.updateKiloShavingRate);
+  const getKiloShavingRate = useQuery(api.admin.getKiloShavingRate, { adminId: userId });
+  const updateBuyerServiceFeePercentage = useMutation(api.admin.updateBuyerServiceFeePercentage);
+  const getBuyerServiceFeePercentage = useQuery(api.admin.getBuyerServiceFeePercentageQuery, { adminId: userId });
+  const updateTraderSpendCap = useMutation(api.admin.updateTraderSpendCap);
+  const sendNotificationToSelectedUsers = useMutation(api.notifications.sendNotificationToSelectedUsers);
+  const allUsers = useQuery(api.introspection.getAllUsers, { adminId: userId });
+  const qualityOptions = useQuery(api.admin.getQualityOptions, { adminId: userId, activeOnly: false });
+  const addQualityOption = useMutation(api.admin.addQualityOption);
+  const updateQualityOption = useMutation(api.admin.updateQualityOption);
+  const deleteQualityOption = useMutation(api.admin.deleteQualityOption);
+  const produceOptions = useQuery(api.admin.getProduceOptions, { adminId: userId, activeOnly: false });
+  const addProduceOption = useMutation(api.admin.addProduceOption);
+  const updateProduceOption = useMutation(api.admin.updateProduceOption);
+  const deleteProduceOption = useMutation(api.admin.deleteProduceOption);
   
   const [reason, setReason] = useState("");
   const [windowActionLoading, setWindowActionLoading] = useState(false);
@@ -26,11 +42,44 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   const [pilotModeLoading, setPilotModeLoading] = useState(false);
   const [pilotModeMessage, setPilotModeMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const handleExportUTIDs = (format: "excel" | "pdf") => {
+    if (!allUTIDs || !allUTIDs.utids || allUTIDs.utids.length === 0) {
+      alert("No UTID data available to export");
+      return;
+    }
+
+    const formattedData = formatUTIDDataForExport(allUTIDs.utids);
+    const filename = `admin_all_utid_report_${new Date().toISOString().split("T")[0]}`;
+
+    if (format === "excel") {
+      exportToExcel(formattedData, filename, "Admin");
+    } else {
+      exportToPDF(formattedData, filename, "Admin");
+    }
+  };
+
   return (
     <div>
-      <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", color: "#1a1a1a" }}>
-        Admin Dashboard
-      </h2>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h2 style={{ 
+          fontSize: "1.8rem", 
+          marginBottom: "0.5rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "700",
+          letterSpacing: "-0.02em"
+        }}>
+          Admin Console 🛡️
+        </h2>
+        <p style={{ 
+          color: "#3d3d3d", 
+          fontSize: "0.9rem",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "500"
+        }}>
+          System Status: {pilotMode === undefined ? "Connecting..." : pilotMode.pilotMode ? "MAINTENANCE" : "LIVE"}
+        </p>
+      </div>
 
       {/* Red Flags Summary */}
       <div style={{
@@ -41,7 +90,15 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           Red Flags (High-Risk Signals)
         </h3>
         {redFlags === undefined ? (
@@ -85,7 +142,15 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           System UTIDs
         </h3>
         {allUTIDs === undefined ? (
@@ -131,7 +196,15 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           Purchase Window Control
         </h3>
         {purchaseWindowStatus === undefined ? (
@@ -286,7 +359,101 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         )}
       </div>
 
-      {/* Pilot Mode Control */}
+      {/* System Metrics */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          System Metrics
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+          <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
+            <div style={{ fontSize: "2rem", fontWeight: "600", color: "#1976d2" }}>
+              {allUTIDs?.totalUTIDs || 0}
+            </div>
+            <div style={{ color: "#666", fontSize: "0.9rem" }}>Active Transactions</div>
+          </div>
+          <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
+            <div style={{ fontSize: "2rem", fontWeight: "600", color: "#2e7d32" }}>
+              {allUTIDs?.utids.filter((u: any) => u.type === "unit_lock").length || 0}
+            </div>
+            <div style={{ color: "#666", fontSize: "0.9rem" }}>Locked Units</div>
+          </div>
+          <div style={{ padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
+            <div style={{ fontSize: "2rem", fontWeight: "600", color: "#1a1a1a" }}>
+              {allUTIDs?.utids.filter((u: any) => u.type === "listing").length || 0}
+            </div>
+            <div style={{ color: "#666", fontSize: "0.9rem" }}>Active Listings</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Timeline */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Live Timeline
+        </h3>
+        {allUTIDs === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : allUTIDs.utids.length === 0 ? (
+          <p style={{ color: "#666" }}>No recent activity</p>
+        ) : (
+          <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+            {allUTIDs.utids.slice(0, 10).map((utidData: any, index: number) => {
+              const timestamp = utidData.timestamp || Date.now();
+              const time = new Date(timestamp).toLocaleTimeString();
+              let activity = "";
+              if (utidData.type === "unit_lock") activity = `${utidData.quantity || "10"}kg ${utidData.produceType || "Produce"} Locked`;
+              else if (utidData.type === "buyer_purchase") activity = "Buyer Purchase Completed";
+              else if (utidData.type === "listing") activity = "Farmer Listing Created";
+              else activity = `${utidData.type} - ${utidData.status || "active"}`;
+
+              return (
+                <div key={index} style={{
+                  padding: "0.75rem",
+                  marginBottom: "0.5rem",
+                  background: "#f9f9f9",
+                  borderRadius: "6px",
+                  fontSize: "0.9rem",
+                  borderLeft: "3px solid #1976d2"
+                }}>
+                  <span style={{ color: "#666", fontFamily: "monospace" }}>{time}</span> — {activity}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* System Controls - Maintenance Mode */}
       <div style={{
         padding: "1.5rem",
         background: "#fff",
@@ -294,8 +461,16 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
-          Pilot Mode Control
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          System Controls
         </h3>
         {pilotMode === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
@@ -456,6 +631,221 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         )}
       </div>
 
+      {/* Kilo-Shaving Rate Management */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Kilo-Shaving Rate Management
+        </h3>
+        {getKiloShavingRate === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <div>
+            <div style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "6px" }}>
+              <div style={{ fontSize: "0.9rem", color: "#666", marginBottom: "0.5rem" }}>Current Rate</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#1976d2" }}>
+                {getKiloShavingRate.rateKgPerDay} kg per day per 100kg block
+              </div>
+            </div>
+            <KiloShavingRateForm 
+              currentRate={getKiloShavingRate.rateKgPerDay}
+              updateKiloShavingRate={updateKiloShavingRate}
+              adminId={userId}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Buyer Service Fee Management */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Buyer Service Fee Management
+        </h3>
+        {getBuyerServiceFeePercentage === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <div>
+            <div style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "6px" }}>
+              <div style={{ fontSize: "0.9rem", color: "#666", marginBottom: "0.5rem" }}>Current Service Fee</div>
+              <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#1976d2" }}>
+                {getBuyerServiceFeePercentage.serviceFeePercentage}%
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#999", marginTop: "0.25rem" }}>
+                This fee is added to the purchase price for all buyer purchases
+              </div>
+            </div>
+            <BuyerServiceFeeForm 
+              currentFee={getBuyerServiceFeePercentage.serviceFeePercentage}
+              updateBuyerServiceFeePercentage={updateBuyerServiceFeePercentage}
+              adminId={userId}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Trader Spend Cap Management */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Trader Spend Cap Management
+        </h3>
+        {allUsers === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <TraderSpendCapForm
+            traders={allUsers.filter((u: any) => u.role === "trader")}
+            updateTraderSpendCap={updateTraderSpendCap}
+            adminId={userId}
+          />
+        )}
+      </div>
+
+      {/* Produce Options Management */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Produce Options Management
+        </h3>
+        <p style={{ color: "#666", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          Manage produce icons/types that farmers can select when creating listings. Only active options will be displayed to farmers.
+        </p>
+        {produceOptions === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <ProduceOptionsManager
+            produceOptions={produceOptions}
+            addProduceOption={addProduceOption}
+            updateProduceOption={updateProduceOption}
+            deleteProduceOption={deleteProduceOption}
+            adminId={userId}
+          />
+        )}
+      </div>
+
+      {/* Quality Options Management */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Produce Quality Options Management
+        </h3>
+        <p style={{ color: "#666", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          Manage quality rating options that farmers can select when creating listings.
+        </p>
+        {qualityOptions === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <QualityOptionsManager
+            qualityOptions={qualityOptions}
+            addQualityOption={addQualityOption}
+            updateQualityOption={updateQualityOption}
+            deleteQualityOption={deleteQualityOption}
+            adminId={userId}
+          />
+        )}
+      </div>
+
+      {/* Send Notifications */}
+      <div style={{
+        marginBottom: "2rem",
+        padding: "1.5rem",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
+          Send Notifications
+        </h3>
+        {allUsers === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : (
+          <NotificationForm
+            allUsers={allUsers}
+            sendNotification={sendNotificationToSelectedUsers}
+            adminId={userId}
+          />
+        )}
+      </div>
+
       {/* System Controls (Legacy) */}
       <div style={{
         padding: "1.5rem",
@@ -464,7 +854,15 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "1.3rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           System Controls
         </h3>
         <p style={{ color: "#666", marginBottom: "1rem" }}>
@@ -528,6 +926,1693 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
             Reset All Transactions →
           </a>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Buyer Service Fee Form Component
+function BuyerServiceFeeForm({ currentFee, updateBuyerServiceFeePercentage, adminId }: { currentFee: number; updateBuyerServiceFeePercentage: any; adminId: Id<"users"> }) {
+  const [fee, setFee] = useState<string>(currentFee.toString());
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSubmit = async () => {
+    const feeValue = parseFloat(fee);
+    if (!fee || isNaN(feeValue) || feeValue < 0 || feeValue > 100) {
+      setMessage({ type: "error", text: "Please enter a valid percentage (0-100)" });
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage({ type: "error", text: "Please provide a reason" });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await updateBuyerServiceFeePercentage({
+        adminId,
+        serviceFeePercentage: feeValue,
+        reason: reason.trim(),
+      });
+      setMessage({
+        type: "success",
+        text: `Service fee percentage updated successfully! UTID: ${result.utid}. New fee: ${feeValue}%.`
+      });
+      setReason("");
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to update service fee: ${error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          New Service Fee Percentage (0-100):
+        </label>
+        <input
+          type="number"
+          value={fee}
+          onChange={(e) => setFee(e.target.value)}
+          min="0"
+          max="100"
+          step="0.1"
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit"
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Reason (required):
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Enter reason for changing service fee percentage..."
+          style={{
+            width: "100%",
+            minHeight: "80px",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            resize: "vertical"
+          }}
+        />
+      </div>
+      {message && (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          background: message.type === "success" ? "#e8f5e9" : "#ffebee",
+          border: `1px solid ${message.type === "success" ? "#4caf50" : "#ef5350"}`,
+          borderRadius: "6px",
+          color: message.type === "success" ? "#2e7d32" : "#c62828",
+          fontSize: "0.9rem"
+        }}>
+          {message.text}
+        </div>
+      )}
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        style={{
+          padding: "0.75rem 1.5rem",
+          background: loading ? "#ccc" : "#1976d2",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "0.9rem",
+          fontWeight: "600",
+          cursor: loading ? "not-allowed" : "pointer"
+        }}
+      >
+        {loading ? "Updating..." : "Update Service Fee Percentage"}
+      </button>
+    </div>
+  );
+}
+
+// Kilo-Shaving Rate Form Component
+function KiloShavingRateForm({ currentRate, updateKiloShavingRate, adminId }: { currentRate: number; updateKiloShavingRate: any; adminId: Id<"users"> }) {
+  const [rate, setRate] = useState<string>(currentRate.toString());
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSubmit = async () => {
+    const rateValue = parseFloat(rate);
+    if (!rate || isNaN(rateValue) || rateValue < 0) {
+      setMessage({ type: "error", text: "Please enter a valid rate (must be >= 0)" });
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage({ type: "error", text: "Please provide a reason" });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await updateKiloShavingRate({
+        adminId,
+        rateKgPerDay: rateValue,
+        reason: reason.trim(),
+      });
+      setMessage({
+        type: "success",
+        text: `Kilo-shaving rate updated successfully! UTID: ${result.utid}. New rate: ${rateValue} kg/day per 100kg block.`
+      });
+      setReason("");
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to update rate: ${error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          New Rate (kg per day per 100kg block):
+        </label>
+        <input
+          type="number"
+          value={rate}
+          onChange={(e) => setRate(e.target.value)}
+          min="0"
+          step="0.1"
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit"
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Reason (required):
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Enter reason for changing kilo-shaving rate..."
+          style={{
+            width: "100%",
+            minHeight: "80px",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            resize: "vertical"
+          }}
+        />
+      </div>
+      {message && (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          background: message.type === "success" ? "#e8f5e9" : "#ffebee",
+          border: `1px solid ${message.type === "success" ? "#4caf50" : "#ef5350"}`,
+          borderRadius: "6px",
+          color: message.type === "success" ? "#2e7d32" : "#c62828",
+          fontSize: "0.9rem"
+        }}>
+          {message.text}
+        </div>
+      )}
+      <button
+        onClick={handleSubmit}
+        disabled={loading}
+        style={{
+          padding: "0.75rem 1.5rem",
+          background: loading ? "#ccc" : "#1976d2",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "0.9rem",
+          fontWeight: "600",
+          cursor: loading ? "not-allowed" : "pointer"
+        }}
+      >
+        {loading ? "Updating..." : "Update Kilo-Shaving Rate"}
+      </button>
+    </div>
+  );
+}
+
+// Trader Spend Cap Form Component
+function TraderSpendCapForm({ traders, updateTraderSpendCap, adminId }: { traders: any[]; updateTraderSpendCap: any; adminId: Id<"users"> }) {
+  const [selectedTrader, setSelectedTrader] = useState<string>("");
+  const [spendCap, setSpendCap] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSubmit = async () => {
+    if (!selectedTrader) {
+      setMessage({ type: "error", text: "Please select a trader" });
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage({ type: "error", text: "Please provide a reason" });
+      return;
+    }
+
+    const spendCapValue = spendCap.trim() === "" ? undefined : parseFloat(spendCap);
+    if (spendCapValue !== undefined && (isNaN(spendCapValue) || spendCapValue < 0)) {
+      setMessage({ type: "error", text: "Please enter a valid spend cap (must be >= 0) or leave empty to reset to default" });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    try {
+      const result = await updateTraderSpendCap({
+        adminId,
+        traderId: selectedTrader as Id<"users">,
+        spendCap: spendCapValue,
+        reason: reason.trim(),
+      });
+      setMessage({
+        type: "success",
+        text: `Spend cap ${spendCapValue === undefined ? "reset to default" : `set to ${spendCapValue.toLocaleString()} UGX`} for trader ${result.traderAlias}! UTID: ${result.utid}.`
+      });
+      setSelectedTrader("");
+      setSpendCap("");
+      setReason("");
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to update spend cap: ${error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Select Trader:
+        </label>
+        <select
+          value={selectedTrader}
+          onChange={(e) => setSelectedTrader(e.target.value)}
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit"
+          }}
+        >
+          <option value="">-- Select a trader --</option>
+          {traders.map((trader: any) => (
+            <option key={trader.userId} value={trader.userId}>
+              {trader.alias} {trader.customSpendCap ? `(Current: ${trader.customSpendCap.toLocaleString()} UGX)` : "(Default: 1,000,000 UGX)"}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          New Spend Cap (UGX) - Leave empty to reset to default:
+        </label>
+        <input
+          type="number"
+          value={spendCap}
+          onChange={(e) => setSpendCap(e.target.value)}
+          min="0"
+          step="1000"
+          placeholder="e.g., 2000000 (or leave empty for default)"
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit"
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Reason (required):
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Enter reason for changing spend cap..."
+          style={{
+            width: "100%",
+            minHeight: "80px",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            resize: "vertical"
+          }}
+        />
+      </div>
+      {message && (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          background: message.type === "success" ? "#e8f5e9" : "#ffebee",
+          border: `1px solid ${message.type === "success" ? "#4caf50" : "#ef5350"}`,
+          borderRadius: "6px",
+          color: message.type === "success" ? "#2e7d32" : "#c62828",
+          fontSize: "0.9rem"
+        }}>
+          {message.text}
+        </div>
+      )}
+      <button
+        onClick={handleSubmit}
+        disabled={loading || !selectedTrader}
+        style={{
+          padding: "0.75rem 1.5rem",
+          background: loading || !selectedTrader ? "#ccc" : "#1976d2",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "0.9rem",
+          fontWeight: "600",
+          cursor: loading || !selectedTrader ? "not-allowed" : "pointer"
+        }}
+      >
+        {loading ? "Updating..." : "Update Trader Spend Cap"}
+      </button>
+    </div>
+  );
+}
+
+// Notification Form Component
+function NotificationForm({ allUsers, sendNotification, adminId }: { allUsers: any[]; sendNotification: any; adminId: Id<"users"> }) {
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resultMessage, setResultMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const toggleUser = (userId: string) => {
+    const newSet = new Set(selectedUserIds);
+    if (newSet.has(userId)) {
+      newSet.delete(userId);
+    } else {
+      newSet.add(userId);
+    }
+    setSelectedUserIds(newSet);
+  };
+
+  const selectAll = () => {
+    setSelectedUserIds(new Set(allUsers.map((u: any) => u.userId)));
+  };
+
+  const selectNone = () => {
+    setSelectedUserIds(new Set());
+  };
+
+  const handleSubmit = async () => {
+    if (selectedUserIds.size === 0) {
+      setResultMessage({ type: "error", text: "Please select at least one user" });
+      return;
+    }
+    if (!title.trim()) {
+      setResultMessage({ type: "error", text: "Please enter a title" });
+      return;
+    }
+    if (!message.trim()) {
+      setResultMessage({ type: "error", text: "Please enter a message" });
+      return;
+    }
+    if (!reason.trim()) {
+      setResultMessage({ type: "error", text: "Please provide a reason" });
+      return;
+    }
+
+    setLoading(true);
+    setResultMessage(null);
+    try {
+      const result = await sendNotification({
+        adminId,
+        userIds: Array.from(selectedUserIds) as Id<"users">[],
+        title: title.trim(),
+        message: message.trim(),
+        reason: reason.trim(),
+      });
+      setResultMessage({
+        type: "success",
+        text: `Notification sent successfully to ${result.recipientsCount} user(s)! UTID: ${result.notificationUtid}.`
+      });
+      setTitle("");
+      setMessage("");
+      setReason("");
+      setSelectedUserIds(new Set());
+    } catch (error: any) {
+      setResultMessage({ type: "error", text: `Failed to send notification: ${error.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Group users by role
+  const usersByRole = {
+    farmer: allUsers.filter((u: any) => u.role === "farmer"),
+    trader: allUsers.filter((u: any) => u.role === "trader"),
+    buyer: allUsers.filter((u: any) => u.role === "buyer"),
+    admin: allUsers.filter((u: any) => u.role === "admin"),
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: "1rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+          <button
+            onClick={selectAll}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#e3f2fd",
+              color: "#1976d2",
+              border: "1px solid #2196f3",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              cursor: "pointer"
+            }}
+          >
+            Select All
+          </button>
+          <button
+            onClick={selectNone}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "#f5f5f5",
+              color: "#666",
+              border: "1px solid #ddd",
+              borderRadius: "6px",
+              fontSize: "0.85rem",
+              cursor: "pointer"
+            }}
+          >
+            Select None
+          </button>
+        </div>
+        <div style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid #ddd", borderRadius: "6px", padding: "0.75rem" }}>
+          {Object.entries(usersByRole).map(([role, users]) => (
+            users.length > 0 && (
+              <div key={role} style={{ marginBottom: "1rem" }}>
+                <div style={{ fontWeight: "600", marginBottom: "0.5rem", textTransform: "capitalize", color: "#666" }}>
+                  {role}s ({users.length})
+                </div>
+                {users.map((user: any) => (
+                  <label
+                    key={user.userId}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0.5rem",
+                      cursor: "pointer",
+                      borderRadius: "4px",
+                      marginBottom: "0.25rem",
+                      background: selectedUserIds.has(user.userId) ? "#e3f2fd" : "transparent"
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedUserIds.has(user.userId)}
+                      onChange={() => toggleUser(user.userId)}
+                      style={{ marginRight: "0.5rem" }}
+                    />
+                    <span>{user.alias} ({user.email})</span>
+                  </label>
+                ))}
+              </div>
+            )
+          ))}
+        </div>
+        <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
+          Selected: {selectedUserIds.size} user(s)
+        </div>
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Title:
+        </label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Notification title"
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit"
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Message:
+        </label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Notification message"
+          disabled={loading}
+          style={{
+            width: "100%",
+            minHeight: "100px",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            resize: "vertical"
+          }}
+        />
+      </div>
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#1a1a1a" }}>
+          Reason (required):
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Enter reason for sending notification..."
+          disabled={loading}
+          style={{
+            width: "100%",
+            minHeight: "80px",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontFamily: "inherit",
+            resize: "vertical"
+          }}
+        />
+      </div>
+      {resultMessage && (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "0.75rem",
+          background: resultMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+          border: `1px solid ${resultMessage.type === "success" ? "#4caf50" : "#ef5350"}`,
+          borderRadius: "6px",
+          color: resultMessage.type === "success" ? "#2e7d32" : "#c62828",
+          fontSize: "0.9rem"
+        }}>
+          {resultMessage.text}
+        </div>
+      )}
+      <button
+        onClick={handleSubmit}
+        disabled={loading || selectedUserIds.size === 0}
+        style={{
+          padding: "0.75rem 1.5rem",
+          background: loading || selectedUserIds.size === 0 ? "#ccc" : "#1976d2",
+          color: "#fff",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "0.9rem",
+          fontWeight: "600",
+          cursor: loading || selectedUserIds.size === 0 ? "not-allowed" : "pointer"
+        }}
+      >
+        {loading ? "Sending..." : `Send Notification to ${selectedUserIds.size} User(s)`}
+      </button>
+    </div>
+  );
+}
+
+// Quality Options Manager Component
+function QualityOptionsManager({ 
+  qualityOptions, 
+  addQualityOption, 
+  updateQualityOption, 
+  deleteQualityOption, 
+  adminId 
+}: { 
+  qualityOptions: any[]; 
+  addQualityOption: any; 
+  updateQualityOption: any; 
+  deleteQualityOption: any; 
+  adminId: Id<"users"> 
+}) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newOrder, setNewOrder] = useState<string>("0");
+  const [addReason, setAddReason] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editOrder, setEditOrder] = useState<string>("");
+  const [editActive, setEditActive] = useState(true);
+  const [editReason, setEditReason] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMessage, setEditMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    if (!newLabel.trim() || !newValue.trim()) {
+      setAddMessage({ type: "error", text: "Label and value are required" });
+      return;
+    }
+    if (!addReason.trim()) {
+      setAddMessage({ type: "error", text: "Reason is required" });
+      return;
+    }
+
+    setAddLoading(true);
+    setAddMessage(null);
+    try {
+      const result = await addQualityOption({
+        adminId,
+        label: newLabel.trim(),
+        value: newValue.trim(),
+        order: parseInt(newOrder) || 0,
+        reason: addReason.trim(),
+      });
+      setAddMessage({
+        type: "success",
+        text: `Quality option added successfully! UTID: ${result.utid}`
+      });
+      setNewLabel("");
+      setNewValue("");
+      setNewOrder("0");
+      setAddReason("");
+      setShowAddForm(false);
+    } catch (error: any) {
+      setAddMessage({ type: "error", text: `Failed to add option: ${error.message}` });
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleEdit = async (optionId: string) => {
+    if (!editReason.trim()) {
+      setEditMessage({ type: "error", text: "Reason is required" });
+      return;
+    }
+
+    setEditLoading(true);
+    setEditMessage(null);
+    try {
+      const result = await updateQualityOption({
+        adminId,
+        optionId: optionId as Id<"qualityOptions">,
+        label: editLabel.trim(),
+        order: parseInt(editOrder) || 0,
+        active: editActive,
+        reason: editReason.trim(),
+      });
+      setEditMessage({
+        type: "success",
+        text: `Quality option updated successfully! UTID: ${result.utid}`
+      });
+      setEditingId(null);
+      setEditReason("");
+    } catch (error: any) {
+      setEditMessage({ type: "error", text: `Failed to update option: ${error.message}` });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = async (optionId: string) => {
+    if (!deleteReason.trim()) {
+      alert("Please provide a reason for deletion");
+      return;
+    }
+
+    try {
+      const result = await deleteQualityOption({
+        adminId,
+        optionId: optionId as Id<"qualityOptions">,
+        reason: deleteReason.trim(),
+      });
+      setDeletingId(null);
+      setDeleteReason("");
+      alert(`Quality option deleted successfully! UTID: ${result.utid}`);
+    } catch (error: any) {
+      alert(`Failed to delete option: ${error.message}`);
+    }
+  };
+
+  const startEdit = (option: any) => {
+    setEditingId(option.optionId);
+    setEditLabel(option.label);
+    setEditOrder(option.order.toString());
+    setEditActive(option.active);
+    setEditReason("");
+    setEditMessage(null);
+  };
+
+  return (
+    <div>
+      {/* Add New Option */}
+      {!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1.5rem",
+            background: "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontWeight: "600",
+            cursor: "pointer"
+          }}
+        >
+          + Add Quality Option
+        </button>
+      ) : (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "1rem",
+          background: "#f9f9f9",
+          borderRadius: "8px",
+          border: "1px solid #e0e0e0"
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.1rem" }}>Add New Quality Option</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Label (Display Text):
+              </label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g., Premium, Good, Fair"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Value (Unique Identifier):
+              </label>
+              <input
+                type="text"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="e.g., premium, good, fair"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Display Order:
+              </label>
+              <input
+                type="number"
+                value={newOrder}
+                onChange={(e) => setNewOrder(e.target.value)}
+                min="0"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Reason (required):
+              </label>
+              <textarea
+                value={addReason}
+                onChange={(e) => setAddReason(e.target.value)}
+                placeholder="Enter reason for adding this option..."
+                rows={2}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            {addMessage && (
+              <div style={{
+                padding: "0.5rem",
+                background: addMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                borderRadius: "4px",
+                color: addMessage.type === "success" ? "#2e7d32" : "#c62828",
+                fontSize: "0.85rem"
+              }}>
+                {addMessage.text}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={handleAdd}
+                disabled={addLoading}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: addLoading ? "#ccc" : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem",
+                  cursor: addLoading ? "not-allowed" : "pointer"
+                }}
+              >
+                {addLoading ? "Adding..." : "Add Option"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewLabel("");
+                  setNewValue("");
+                  setNewOrder("0");
+                  setAddReason("");
+                  setAddMessage(null);
+                }}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#f5f5f5",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem",
+                  cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Existing Options List */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <h4 style={{ marginBottom: "0.75rem", fontSize: "1.1rem" }}>Existing Quality Options</h4>
+        {qualityOptions.length === 0 ? (
+          <p style={{ color: "#666", fontSize: "0.9rem" }}>No quality options defined yet.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {qualityOptions.map((option) => (
+              <div
+                key={option.optionId}
+                style={{
+                  padding: "1rem",
+                  background: option.active ? "#fff" : "#f5f5f5",
+                  borderRadius: "6px",
+                  border: `1px solid ${option.active ? "#e0e0e0" : "#ccc"}`,
+                  opacity: option.active ? 1 : 0.6
+                }}
+              >
+                {editingId === option.optionId ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Label:
+                      </label>
+                      <input
+                        type="text"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Order:
+                      </label>
+                      <input
+                        type="number"
+                        value={editOrder}
+                        onChange={(e) => setEditOrder(e.target.value)}
+                        min="0"
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={editActive}
+                          onChange={(e) => setEditActive(e.target.checked)}
+                        />
+                        Active (available to farmers)
+                      </label>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Reason (required):
+                      </label>
+                      <textarea
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        placeholder="Enter reason for updating..."
+                        rows={2}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    {editMessage && (
+                      <div style={{
+                        padding: "0.5rem",
+                        background: editMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                        borderRadius: "4px",
+                        color: editMessage.type === "success" ? "#2e7d32" : "#c62828",
+                        fontSize: "0.85rem"
+                      }}>
+                        {editMessage.text}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => handleEdit(option.optionId)}
+                        disabled={editLoading}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: editLoading ? "#ccc" : "#1976d2",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem",
+                          cursor: editLoading ? "not-allowed" : "pointer"
+                        }}
+                      >
+                        {editLoading ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditReason("");
+                          setEditMessage(null);
+                        }}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#f5f5f5",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                        {option.label} {!option.active && <span style={{ color: "#999", fontSize: "0.85rem" }}>(Inactive)</span>}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                        Value: <code>{option.value}</code> | Order: {option.order}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => startEdit(option)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#1976d2",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Edit
+                      </button>
+                      {deletingId === option.optionId ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "200px" }}>
+                          <input
+                            type="text"
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            placeholder="Reason for deletion..."
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              border: "1px solid #ddd",
+                              borderRadius: "4px",
+                              fontSize: "0.85rem"
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: "0.25rem" }}>
+                            <button
+                              onClick={() => handleDelete(option.optionId)}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                background: "#d32f2f",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "4px",
+                                fontSize: "0.8rem",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDeletingId(null);
+                                setDeleteReason("");
+                              }}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                background: "#f5f5f5",
+                                border: "1px solid #ddd",
+                                borderRadius: "4px",
+                                fontSize: "0.8rem",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingId(option.optionId)}
+                          style={{
+                            padding: "0.5rem 1rem",
+                            background: "#d32f2f",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontSize: "0.85rem",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Produce Options Manager Component
+function ProduceOptionsManager({ 
+  produceOptions, 
+  addProduceOption, 
+  updateProduceOption, 
+  deleteProduceOption, 
+  adminId 
+}: { 
+  produceOptions: any[]; 
+  addProduceOption: any; 
+  updateProduceOption: any; 
+  deleteProduceOption: any; 
+  adminId: Id<"users"> 
+}) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newIcon, setNewIcon] = useState("");
+  const [newOrder, setNewOrder] = useState<string>("0");
+  const [addReason, setAddReason] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addMessage, setAddMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editIcon, setEditIcon] = useState("");
+  const [editOrder, setEditOrder] = useState<string>("");
+  const [editActive, setEditActive] = useState(true);
+  const [editReason, setEditReason] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMessage, setEditMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    if (!newLabel.trim() || !newValue.trim() || !newIcon.trim()) {
+      setAddMessage({ type: "error", text: "Label, value, and icon are required" });
+      return;
+    }
+    if (!addReason.trim()) {
+      setAddMessage({ type: "error", text: "Reason is required" });
+      return;
+    }
+
+    setAddLoading(true);
+    setAddMessage(null);
+    try {
+      const result = await addProduceOption({
+        adminId,
+        label: newLabel.trim(),
+        value: newValue.trim(),
+        icon: newIcon.trim(),
+        order: parseInt(newOrder) || 0,
+        reason: addReason.trim(),
+      });
+      setAddMessage({
+        type: "success",
+        text: `Produce option added successfully! UTID: ${result.utid}`
+      });
+      setNewLabel("");
+      setNewValue("");
+      setNewIcon("");
+      setNewOrder("0");
+      setAddReason("");
+      setShowAddForm(false);
+    } catch (error: any) {
+      setAddMessage({ type: "error", text: `Failed to add option: ${error.message}` });
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleEdit = async (optionId: string) => {
+    if (!editReason.trim()) {
+      setEditMessage({ type: "error", text: "Reason is required" });
+      return;
+    }
+
+    setEditLoading(true);
+    setEditMessage(null);
+    try {
+      const result = await updateProduceOption({
+        adminId,
+        optionId: optionId as Id<"produceOptions">,
+        label: editLabel.trim(),
+        icon: editIcon.trim(),
+        order: parseInt(editOrder) || 0,
+        active: editActive,
+        reason: editReason.trim(),
+      });
+      setEditMessage({
+        type: "success",
+        text: `Produce option updated successfully! UTID: ${result.utid}`
+      });
+      setEditingId(null);
+      setEditReason("");
+    } catch (error: any) {
+      setEditMessage({ type: "error", text: `Failed to update option: ${error.message}` });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = async (optionId: string) => {
+    if (!deleteReason.trim()) {
+      alert("Please provide a reason for deletion");
+      return;
+    }
+
+    try {
+      const result = await deleteProduceOption({
+        adminId,
+        optionId: optionId as Id<"produceOptions">,
+        reason: deleteReason.trim(),
+      });
+      setDeletingId(null);
+      setDeleteReason("");
+      alert(`Produce option deleted successfully! UTID: ${result.utid}`);
+    } catch (error: any) {
+      alert(`Failed to delete option: ${error.message}`);
+    }
+  };
+
+  const startEdit = (option: any) => {
+    setEditingId(option.optionId);
+    setEditLabel(option.label);
+    setEditIcon(option.icon);
+    setEditOrder(option.order.toString());
+    setEditActive(option.active);
+    setEditReason("");
+    setEditMessage(null);
+  };
+
+  return (
+    <div>
+      {/* Add New Option */}
+      {!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1.5rem",
+            background: "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            fontWeight: "600",
+            cursor: "pointer"
+          }}
+        >
+          + Add Produce Option
+        </button>
+      ) : (
+        <div style={{
+          marginBottom: "1rem",
+          padding: "1rem",
+          background: "#f9f9f9",
+          borderRadius: "8px",
+          border: "1px solid #e0e0e0"
+        }}>
+          <h4 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.1rem" }}>Add New Produce Option</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Label (Display Text):
+              </label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g., Banana, Maize, Beans"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Value (Unique Identifier):
+              </label>
+              <input
+                type="text"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="e.g., Banana, Maize, Beans"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Icon (Emoji):
+              </label>
+              <input
+                type="text"
+                value={newIcon}
+                onChange={(e) => setNewIcon(e.target.value)}
+                placeholder="e.g., 🍌, 🌽, 🫘"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+              <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem", color: "#666" }}>
+                Enter an emoji icon (e.g., 🍌 for Banana, 🌽 for Maize)
+              </p>
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Display Order:
+              </label>
+              <input
+                type="number"
+                value={newOrder}
+                onChange={(e) => setNewOrder(e.target.value)}
+                min="0"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                Reason (required):
+              </label>
+              <textarea
+                value={addReason}
+                onChange={(e) => setAddReason(e.target.value)}
+                placeholder="Enter reason for adding this option..."
+                rows={2}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
+            {addMessage && (
+              <div style={{
+                padding: "0.5rem",
+                background: addMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                borderRadius: "4px",
+                color: addMessage.type === "success" ? "#2e7d32" : "#c62828",
+                fontSize: "0.85rem"
+              }}>
+                {addMessage.text}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={handleAdd}
+                disabled={addLoading}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: addLoading ? "#ccc" : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem",
+                  cursor: addLoading ? "not-allowed" : "pointer"
+                }}
+              >
+                {addLoading ? "Adding..." : "Add Option"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewLabel("");
+                  setNewValue("");
+                  setNewIcon("");
+                  setNewOrder("0");
+                  setAddReason("");
+                  setAddMessage(null);
+                }}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#f5f5f5",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "0.9rem",
+                  cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Existing Options List */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <h4 style={{ marginBottom: "0.75rem", fontSize: "1.1rem" }}>Existing Produce Options</h4>
+        {produceOptions.length === 0 ? (
+          <p style={{ color: "#666", fontSize: "0.9rem" }}>No produce options defined yet. Add options to enable farmers to create listings.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {produceOptions.map((option) => (
+              <div
+                key={option.optionId}
+                style={{
+                  padding: "1rem",
+                  background: option.active ? "#fff" : "#f5f5f5",
+                  borderRadius: "6px",
+                  border: `1px solid ${option.active ? "#e0e0e0" : "#ccc"}`,
+                  opacity: option.active ? 1 : 0.6
+                }}
+              >
+                {editingId === option.optionId ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Label:
+                      </label>
+                      <input
+                        type="text"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Icon (Emoji):
+                      </label>
+                      <input
+                        type="text"
+                        value={editIcon}
+                        onChange={(e) => setEditIcon(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Order:
+                      </label>
+                      <input
+                        type="number"
+                        value={editOrder}
+                        onChange={(e) => setEditOrder(e.target.value)}
+                        min="0"
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={editActive}
+                          onChange={(e) => setEditActive(e.target.checked)}
+                        />
+                        Active (available to farmers)
+                      </label>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9rem", fontWeight: "600" }}>
+                        Reason (required):
+                      </label>
+                      <textarea
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        placeholder="Enter reason for updating..."
+                        rows={2}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem"
+                        }}
+                      />
+                    </div>
+                    {editMessage && (
+                      <div style={{
+                        padding: "0.5rem",
+                        background: editMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+                        borderRadius: "4px",
+                        color: editMessage.type === "success" ? "#2e7d32" : "#c62828",
+                        fontSize: "0.85rem"
+                      }}>
+                        {editMessage.text}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => handleEdit(option.optionId)}
+                        disabled={editLoading}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: editLoading ? "#ccc" : "#1976d2",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem",
+                          cursor: editLoading ? "not-allowed" : "pointer"
+                        }}
+                      >
+                        {editLoading ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditReason("");
+                          setEditMessage(null);
+                        }}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#f5f5f5",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "0.9rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      <span style={{ fontSize: "2rem" }}>{option.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                          {option.label} {!option.active && <span style={{ color: "#999", fontSize: "0.85rem" }}>(Inactive)</span>}
+                        </div>
+                        <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                          Value: <code>{option.value}</code> | Order: {option.order}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => startEdit(option)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#1976d2",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          fontSize: "0.85rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Edit
+                      </button>
+                      {deletingId === option.optionId ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "200px" }}>
+                          <input
+                            type="text"
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            placeholder="Reason for deletion..."
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              border: "1px solid #ddd",
+                              borderRadius: "4px",
+                              fontSize: "0.85rem"
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: "0.25rem" }}>
+                            <button
+                              onClick={() => handleDelete(option.optionId)}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                background: "#d32f2f",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "4px",
+                                fontSize: "0.8rem",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDeletingId(null);
+                                setDeleteReason("");
+                              }}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                background: "#f5f5f5",
+                                border: "1px solid #ddd",
+                                borderRadius: "4px",
+                                fontSize: "0.8rem",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingId(option.optionId)}
+                          style={{
+                            padding: "0.5rem 1rem",
+                            background: "#d32f2f",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontSize: "0.85rem",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

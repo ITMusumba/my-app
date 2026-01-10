@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useState } from "react";
@@ -11,6 +11,8 @@ interface CreateListingProps {
 
 export function CreateListing({ userId }: CreateListingProps) {
   const createListing = useMutation(api.listings.createListing);
+  const qualityOptions = useQuery(api.listings.getActiveQualityOptions, {});
+  const produceOptions = useQuery(api.listings.getActiveProduceOptions, {});
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -19,6 +21,8 @@ export function CreateListing({ userId }: CreateListingProps) {
     produceType: "",
     totalKilos: "",
     pricePerKilo: "",
+    qualityRating: "",
+    qualityComment: "",
   });
 
   const formatUGX = (amount: number) => {
@@ -57,6 +61,8 @@ export function CreateListing({ userId }: CreateListingProps) {
         produceType: formData.produceType.trim(),
         totalKilos,
         pricePerKilo,
+        qualityRating: formData.qualityRating || undefined,
+        qualityComment: formData.qualityComment.trim() || undefined,
       });
 
       setMessage({
@@ -69,6 +75,8 @@ export function CreateListing({ userId }: CreateListingProps) {
         produceType: "",
         totalKilos: "",
         pricePerKilo: "",
+        qualityRating: "",
+        qualityComment: "",
       });
 
       // Hide form after success
@@ -125,7 +133,7 @@ export function CreateListing({ userId }: CreateListingProps) {
           onClick={() => {
             setShowForm(false);
             setMessage(null);
-            setFormData({ produceType: "", totalKilos: "", pricePerKilo: "" });
+            setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "" });
           }}
           style={{
             padding: "0.5rem 1rem",
@@ -157,24 +165,66 @@ export function CreateListing({ userId }: CreateListingProps) {
 
       <form onSubmit={handleSubmit}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Icon-based Produce Selection */}
           <div>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#333" }}>
-              Produce Type *
+            <label style={{ display: "block", marginBottom: "0.75rem", fontWeight: "600", color: "#333" }}>
+              Select Produce Type *
             </label>
-            <input
-              type="text"
-              value={formData.produceType}
-              onChange={(e) => setFormData({ ...formData, produceType: e.target.value })}
-              placeholder="e.g., Maize, Beans, Rice"
-              required
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                border: "1px solid #ddd",
-                borderRadius: "6px",
-                fontSize: "1rem",
-              }}
-            />
+            {produceOptions === undefined ? (
+              <p style={{ color: "#999", fontSize: "0.9rem" }}>Loading produce options...</p>
+            ) : produceOptions.length === 0 ? (
+              <p style={{ color: "#666", fontSize: "0.9rem", padding: "1rem", background: "#fff3cd", borderRadius: "6px" }}>
+                No produce options available. Please contact admin to enable produce types.
+              </p>
+            ) : (
+              <>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))",
+                  gap: "1rem",
+                  marginBottom: "1rem"
+                }}>
+                  {produceOptions.map((produce) => (
+                    <button
+                      key={produce.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, produceType: produce.value })}
+                      style={{
+                        padding: "1rem",
+                        background: formData.produceType === produce.value ? "#e8f5e9" : "#f5f5f5",
+                        border: `2px solid ${formData.produceType === produce.value ? "#4caf50" : "#e0e0e0"}`,
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        fontSize: "2rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      <span>{produce.icon}</span>
+                      <span style={{ fontSize: "0.75rem", color: "#666" }}>{produce.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {/* Fallback text input for other produce types (if admin allows) */}
+                <input
+                  type="text"
+                  value={formData.produceType}
+                  onChange={(e) => setFormData({ ...formData, produceType: e.target.value })}
+                  placeholder="Or type another produce type..."
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "6px",
+                    fontSize: "1rem",
+                  }}
+                />
+              </>
+            )}
           </div>
 
           <div>
@@ -229,6 +279,59 @@ export function CreateListing({ userId }: CreateListingProps) {
             )}
           </div>
 
+          {/* Quality Rating Dropdown */}
+          {qualityOptions && qualityOptions.length > 0 && (
+            <div>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#333" }}>
+                Produce Quality Rating
+              </label>
+              <select
+                value={formData.qualityRating}
+                onChange={(e) => setFormData({ ...formData, qualityRating: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                  background: "#fff",
+                }}
+              >
+                <option value="">-- Select quality rating (optional) --</option>
+                {qualityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Quality Comment */}
+          <div>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600", color: "#333" }}>
+              Quality Comment (Optional)
+            </label>
+            <textarea
+              value={formData.qualityComment}
+              onChange={(e) => setFormData({ ...formData, qualityComment: e.target.value })}
+              placeholder="Add any comments about the quality of your produce..."
+              rows={4}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid #ddd",
+                borderRadius: "6px",
+                fontSize: "1rem",
+                fontFamily: "inherit",
+                resize: "vertical",
+              }}
+            />
+            <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", color: "#666" }}>
+              Describe the quality, freshness, or any special characteristics of your produce.
+            </p>
+          </div>
+
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
             <button
               type="submit"
@@ -251,7 +354,7 @@ export function CreateListing({ userId }: CreateListingProps) {
               onClick={() => {
                 setShowForm(false);
                 setMessage(null);
-                setFormData({ produceType: "", totalKilos: "", pricePerKilo: "" });
+                setFormData({ produceType: "", totalKilos: "", pricePerKilo: "", qualityRating: "", qualityComment: "" });
               }}
               style={{
                 padding: "0.75rem 1.5rem",

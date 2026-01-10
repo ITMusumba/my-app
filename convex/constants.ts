@@ -29,6 +29,12 @@ export const BUYER_PICKUP_SLA_MS = 48 * 60 * 60 * 1000; // 48 hours
 export const DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY = 0.5;
 
 /**
+ * Buyer service fee (set by admin, as percentage)
+ * Default: 3% service fee added to purchase price
+ */
+export const DEFAULT_BUYER_SERVICE_FEE_PERCENTAGE = 3;
+
+/**
  * Rate limits (soft limits per role)
  * - These are soft limits to discourage spam and manipulation
  * - Exceeding limits fails gracefully with logged rate limit hits

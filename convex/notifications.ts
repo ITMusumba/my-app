@@ -533,6 +533,81 @@ export const markAllNotificationsAsRead = mutation({
 });
 
 /**
+ * Send notification to selected users (admin only)
+ * 
+ * Sends notification to a specific list of user IDs.
+ */
+export const sendNotificationToSelectedUsers = mutation({
+  args: {
+    adminId: v.id("users"),
+    userIds: v.array(v.id("users")), // List of user IDs to send notification to
+    title: v.string(),
+    message: v.string(),
+    reason: v.string(), // Required reason for sending notification
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    if (args.userIds.length === 0) {
+      throw new Error("At least one user ID must be provided");
+    }
+
+    // Verify all users exist
+    const users = [];
+    for (const userId of args.userIds) {
+      const user = await ctx.db.get(userId);
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
+      }
+      users.push(user);
+    }
+
+    const now = Date.now();
+    const notificationUtid = generateUTID("admin");
+
+    // Create notification for each selected user
+    const notificationIds = [];
+    for (const user of users) {
+      const notificationId = await ctx.db.insert("notifications", {
+        userId: user._id,
+        type: "admin_broadcast",
+        title: args.title,
+        message: args.message,
+        utid: notificationUtid,
+        read: false,
+        createdAt: now,
+      });
+      notificationIds.push(notificationId);
+    }
+
+    // Log admin action
+    await logAdminNotificationAction(
+      ctx,
+      args.adminId,
+      "selected_users",
+      args.reason,
+      {
+        title: args.title,
+        message: args.message,
+        notificationUtid,
+        recipientsCount: users.length,
+        recipientIds: args.userIds,
+        recipientRoles: users.map((u) => u.role),
+      }
+    );
+
+    return {
+      notificationUtid,
+      recipientsCount: users.length,
+      recipientIds: args.userIds,
+      recipientRoles: users.map((u) => u.role),
+      notificationIds: notificationIds.length,
+      sentAt: now,
+    };
+  },
+});
+
+/**
  * Get notification history (admin only)
  * 
  * Returns all notifications sent by admins for audit purposes.

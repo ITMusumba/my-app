@@ -1,9 +1,11 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { CreateListing } from "./CreateListing";
+import { useState } from "react";
+import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
 
 interface FarmerDashboardProps {
   userId: Id<"users">;
@@ -11,9 +13,17 @@ interface FarmerDashboardProps {
 
 export function FarmerDashboard({ userId }: FarmerDashboardProps) {
   const listings = useQuery(api.farmerDashboard.getFarmerListings, { farmerId: userId });
-  const negotiations = useQuery(api.farmerDashboard.getActiveNegotiations, { farmerId: userId });
+  const negotiations = useQuery(api.negotiations.getFarmerNegotiations, { farmerId: userId });
   const confirmations = useQuery(api.farmerDashboard.getPayToLockConfirmations, { farmerId: userId });
   const deliveryDeadlines = useQuery(api.farmerDashboard.getDeliveryDeadlines, { farmerId: userId });
+  
+  const acceptOffer = useMutation(api.negotiations.acceptOffer);
+  const rejectOffer = useMutation(api.negotiations.rejectOffer);
+  const counterOffer = useMutation(api.negotiations.counterOffer);
+  
+  const [countering, setCountering] = useState<Id<"negotiations"> | null>(null);
+  const [counterPrice, setCounterPrice] = useState<string>("");
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -28,16 +38,124 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
     return `${hours}h ${minutes}m remaining`;
   };
 
+  const formatUGX = (amount: number) => {
+    return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX" }).format(amount);
+  };
+
+  const handleExportUTIDs = (format: "excel" | "pdf") => {
+    if (!listings || !listings.listings || listings.listings.length === 0) {
+      alert("No UTID data available to export");
+      return;
+    }
+
+    // Format farmer listings as UTID data
+    const utidData = listings.listings.map((listing: any) => ({
+      utid: listing.utid,
+      type: "farmer_listing",
+      timestamp: listing.createdAt,
+      status: listing.status,
+      details: {
+        produceType: listing.produceType,
+        totalKilos: listing.totalKilos,
+        pricePerKilo: listing.pricePerKilo,
+        totalUnits: listing.totalUnits,
+      },
+    }));
+
+    const formattedData = formatUTIDDataForExport(utidData);
+    const filename = `farmer_utid_report_${new Date().toISOString().split("T")[0]}`;
+
+    if (format === "excel") {
+      exportToExcel(formattedData, filename, "Farmer");
+    } else {
+      exportToPDF(formattedData, filename, "Farmer");
+    }
+  };
+
+  const handleAcceptOffer = async (negotiationId: Id<"negotiations">) => {
+    setMessage(null);
+    try {
+      const result = await acceptOffer({
+        farmerId: userId,
+        negotiationId: negotiationId,
+      });
+      setMessage({
+        type: "success",
+        text: `Offer accepted! UTID: ${result.acceptedUtid}. Trader can now proceed to pay-to-lock.`,
+      });
+      setTimeout(() => setMessage(null), 8000);
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to accept offer: ${error.message}` });
+    }
+  };
+
+  const handleRejectOffer = async (negotiationId: Id<"negotiations">) => {
+    setMessage(null);
+    try {
+      await rejectOffer({
+        farmerId: userId,
+        negotiationId: negotiationId,
+      });
+      setMessage({ type: "success", text: "Offer rejected." });
+      setTimeout(() => setMessage(null), 5000);
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to reject offer: ${error.message}` });
+    }
+  };
+
+  const handleCounterOffer = async (negotiationId: Id<"negotiations">) => {
+    const price = parseFloat(counterPrice);
+    if (isNaN(price) || price <= 0) {
+      setMessage({ type: "error", text: "Please enter a valid price per kilo" });
+      return;
+    }
+    setMessage(null);
+    try {
+      const result = await counterOffer({
+        farmerId: userId,
+        negotiationId: negotiationId,
+        counterPricePerKilo: price,
+      });
+      setMessage({
+        type: "success",
+        text: `Counter-offer made! New price: ${formatUGX(result.counterPricePerKilo)}/kg. Waiting for trader's response.`,
+      });
+      setCountering(null);
+      setCounterPrice("");
+      setTimeout(() => setMessage(null), 8000);
+    } catch (error: any) {
+      setMessage({ type: "error", text: `Failed to counter-offer: ${error.message}` });
+    }
+  };
+
+  const user = useQuery(api.auth.getUser, { userId });
+
   return (
     <div style={{ padding: "1rem", maxWidth: "100%", boxSizing: "border-box" }}>
-      <h2 style={{ fontSize: "clamp(1.5rem, 4vw, 1.8rem)", marginBottom: "1.5rem", color: "#1a1a1a" }}>
-        Farmer Dashboard
-      </h2>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h2 style={{ 
+          fontSize: "clamp(1.5rem, 4vw, 1.8rem)", 
+          marginBottom: "0.5rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "700",
+          letterSpacing: "-0.02em"
+        }}>
+          Hello, {user?.alias || "Farmer"} 👩🏾‍🌾
+        </h2>
+        <p style={{ 
+          color: "#3d3d3d", 
+          fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+          fontFamily: '"Montserrat", sans-serif'
+        }}>
+          Location: District, Sub-county
+        </p>
+      </div>
 
       {/* Create Listing */}
       <CreateListing userId={userId} />
 
-      {/* My Listings */}
+      {/* Your Transactions - Simplified Cards */}
       <div style={{
         marginBottom: "1.5rem",
         padding: "clamp(1rem, 3vw, 1.5rem)",
@@ -46,42 +164,125 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
-          My Listings
-        </h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h3 style={{ 
+            marginTop: 0, 
+            marginBottom: 0, 
+            fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+            color: "#2c2c2c",
+            fontFamily: '"Montserrat", sans-serif',
+            fontWeight: "600",
+            letterSpacing: "-0.01em"
+          }}>
+            Your Transactions
+          </h3>
+          {listings && listings.listings && listings.listings.length > 0 && (
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={() => handleExportUTIDs("excel")}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#2e7d32",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: "500"
+                }}
+              >
+                📊 Excel
+              </button>
+              <button
+                onClick={() => handleExportUTIDs("pdf")}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#d32f2f",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: "500"
+                }}
+              >
+                📄 PDF
+              </button>
+            </div>
+          )}
+        </div>
         {listings === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
         ) : listings.listings.length === 0 ? (
-          <p style={{ color: "#666" }}>No listings yet. Create your first listing to get started.</p>
+          <p style={{ color: "#666" }}>No transactions yet. Create your first listing to get started.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {listings.listings.map((listing: any, index: number) => (
-              <div key={index} style={{
-                padding: "1rem",
-                background: "#f5f5f5",
-                borderRadius: "8px",
-                border: "1px solid #e0e0e0"
-              }}>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <div>
-                    <div style={{ fontWeight: "600", marginBottom: "0.25rem", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>
-                      {listing.produceType} - {listing.totalKilos} kg
-                    </div>
-                    <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#666" }}>
-                      Price: UGX {listing.pricePerKilo.toLocaleString()}/kg
-                    </div>
-                    <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
-                      UTID: {listing.utid}
-                    </div>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 200px), 1fr))", 
+            gap: "1rem" 
+          }}>
+            {listings.listings.map((listing: any, index: number) => {
+              // Determine status based on unit counts
+              let status = "Available";
+              let statusColor = "#4caf50";
+              if (listing.units.locked > 0 && listing.units.available > 0) {
+                status = "Partially Locked";
+                statusColor = "#ff9800";
+              } else if (listing.units.locked === listing.totalUnits) {
+                status = "Locked";
+                statusColor = "#2196f3";
+              } else if (listing.units.delivered > 0) {
+                status = "Sold";
+                statusColor = "#2e7d32";
+              }
+
+              return (
+                <div 
+                  key={index} 
+                  style={{
+                    padding: "1rem",
+                    background: "#f9f9f9",
+                    borderRadius: "12px",
+                    border: `2px solid ${statusColor}`,
+                    cursor: "pointer",
+                    transition: "transform 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <div style={{ 
+                    fontSize: "clamp(0.7rem, 2vw, 0.75rem)", 
+                    color: "#999", 
+                    marginBottom: "0.5rem",
+                    fontFamily: "monospace",
+                    wordBreak: "break-all"
+                  }}>
+                    UTID: #{listing.utid.slice(-4)}
+                  </div>
+                  <div style={{ 
+                    fontWeight: "600", 
+                    marginBottom: "0.5rem", 
+                    fontSize: "clamp(1rem, 3vw, 1.1rem)",
+                    color: "#1a1a1a"
+                  }}>
+                    {listing.totalKilos}kg {listing.produceType}
+                  </div>
+                  <div style={{ 
+                    fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", 
+                    fontWeight: "600",
+                    color: statusColor
+                  }}>
+                    Status: {status}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "1rem", fontSize: "0.85rem", color: "#666" }}>
-                  <span>Available: {listing.units.available}</span>
-                  <span>Locked: {listing.units.locked}</span>
-                  <span>Delivered: {listing.units.delivered}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -95,28 +296,181 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           Active Negotiations
         </h3>
+        
+        {message && (
+          <div
+            style={{
+              padding: "1rem",
+              marginBottom: "1rem",
+              background: message.type === "success" ? "#e8f5e9" : "#ffebee",
+              borderRadius: "8px",
+              border: `1px solid ${message.type === "success" ? "#4caf50" : "#ef5350"}`,
+              color: message.type === "success" ? "#2e7d32" : "#c62828",
+            }}
+          >
+            {message.text}
+          </div>
+        )}
+
         {negotiations === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
         ) : negotiations.negotiations.length === 0 ? (
-          <p style={{ color: "#666" }}>No active negotiations</p>
+          <p style={{ color: "#666" }}>No active negotiations. Traders can make offers on your listings.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {negotiations.negotiations.map((neg: any, index: number) => (
-              <div key={index} style={{
+            {negotiations.negotiations.map((neg: any) => (
+              <div key={neg.negotiationId} style={{
                 padding: "1rem",
-                background: "#fff3cd",
+                background: neg.status === "accepted" ? "#d4edda" : "#fff3cd",
                 borderRadius: "8px",
-                border: "1px solid #ffc107"
+                border: `1px solid ${neg.status === "accepted" ? "#28a745" : "#ffc107"}`
               }}>
-                <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
-                  {neg.produceType} - {neg.unitsLocked} units locked
+                <div style={{ fontWeight: "600", marginBottom: "0.5rem", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>
+                  {neg.produceType} - Unit #{neg.unitNumber}
                 </div>
-                <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                  Trader: {neg.traderAlias} | Status: {neg.status}
+                <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#666", marginBottom: "0.5rem" }}>
+                  Trader: {neg.traderAlias || "Unknown"}
                 </div>
+                <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#666", marginBottom: "0.5rem" }}>
+                  Your Price: {formatUGX(neg.farmerPricePerKilo)}/kg | 
+                  Trader Offer: {formatUGX(neg.traderOfferPricePerKilo)}/kg | 
+                  Current: {formatUGX(neg.currentPricePerKilo)}/kg
+                </div>
+                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", fontFamily: "monospace", wordBreak: "break-all", marginBottom: "0.5rem" }}>
+                  UTID: {neg.negotiationUtid}
+                </div>
+                <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", fontWeight: "600", marginBottom: "0.75rem", color: neg.status === "accepted" ? "#155724" : "#856404" }}>
+                  Status: {neg.status.toUpperCase()}
+                </div>
+                
+                {neg.status === "pending" && (
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => handleAcceptOffer(neg.negotiationId)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        background: "#28a745",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Accept Offer
+                    </button>
+                    <button
+                      onClick={() => handleRejectOffer(neg.negotiationId)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        background: "#dc3545",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCountering(neg.negotiationId);
+                        setCounterPrice(neg.currentPricePerKilo.toString());
+                      }}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        background: "#ffc107",
+                        color: "#000",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Counter-Offer
+                    </button>
+                  </div>
+                )}
+                
+                {neg.status === "countered" && (
+                  <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#856404" }}>
+                    Waiting for trader to accept your counter-offer...
+                  </div>
+                )}
+                
+                {neg.status === "accepted" && (
+                  <div style={{ fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)", color: "#155724" }}>
+                    ✅ Offer accepted! Trader can now proceed to pay-to-lock. Delivery deadline will start 6 hours after payment.
+                  </div>
+                )}
+                
+                {countering === neg.negotiationId && (
+                  <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", borderRadius: "6px", border: "1px solid #ffc107" }}>
+                    <input
+                      type="number"
+                      value={counterPrice}
+                      onChange={(e) => setCounterPrice(e.target.value)}
+                      placeholder="Enter counter-offer price"
+                      style={{
+                        padding: "0.5rem",
+                        width: "100%",
+                        marginBottom: "0.5rem",
+                        borderRadius: "6px",
+                        border: "1px solid #ccc",
+                        fontSize: "0.9rem",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => handleCounterOffer(neg.negotiationId)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#ffc107",
+                          color: "#000",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Submit Counter-Offer
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCountering(null);
+                          setCounterPrice("");
+                        }}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          background: "#999",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -131,7 +485,15 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+        <h3 style={{ 
+          marginTop: 0, 
+          marginBottom: "1rem", 
+          fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "600",
+          letterSpacing: "-0.01em"
+        }}>
           Delivery Deadlines
         </h3>
         {deliveryDeadlines === undefined ? (
@@ -156,9 +518,14 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                 <div style={{
                   fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
                   fontWeight: "600",
-                  color: delivery.timeRemainingMs <= 0 ? "#c62828" : "#2e7d32"
+                  color: delivery.isPastDeadline ? "#c62828" : "#2e7d32"
                 }}>
-                  {formatTimeRemaining(delivery.deadline)}
+                  {delivery.isPastDeadline 
+                    ? `OVERDUE by ${delivery.hoursOverdue.toFixed(1)} hours`
+                    : `${delivery.hoursRemaining.toFixed(1)} hours remaining (${delivery.minutesRemaining} minutes)`}
+                </div>
+                <div style={{ fontSize: "clamp(0.75rem, 2vw, 0.8rem)", color: "#666", marginTop: "0.25rem" }}>
+                  ⏰ Delivery countdown started from payment time. 6 hours deadline.
                 </div>
                 <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
                   UTID: {delivery.lockUtid}

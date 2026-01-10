@@ -1,32 +1,27 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { getDeploymentMode, getDeploymentModeLabel } from "../utils/deployment";
 
 /**
  * Login Page
  * 
- * Supports both pilot and dev deployment modes
- * - Pilot: Shared password authentication (Farm2Market2024)
- * - Dev: Same authentication system (for now)
+ * User authentication and registration
  */
 export default function LoginPage() {
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"farmer" | "trader" | "buyer">("farmer");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [deploymentMode, setDeploymentMode] = useState<"pilot" | "dev">("pilot");
   const router = useRouter();
   
-  // Detect deployment mode
-  useEffect(() => {
-    setDeploymentMode(getDeploymentMode());
-  }, []);
-  
   const login = useMutation(api.auth.login);
+  const signup = useMutation(api.auth.signup);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,25 +41,48 @@ export default function LoginPage() {
         return;
       }
 
-      const result = await login({
-        email: email.trim(),
-        password: password.trim(),
-      });
+      if (isSignup) {
+        // Signup validation
+        if (password.length < 6) {
+          setError("Password must be at least 6 characters long");
+          setLoading(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("Passwords do not match");
+          setLoading(false);
+          return;
+        }
 
-      // Store user info in localStorage
-      localStorage.setItem("pilot_user", JSON.stringify(result));
-      
-      // Redirect to dashboard
-      router.push("/");
-    } catch (err: any) {
-      console.error("Login error:", err);
-      const errorMessage = err.message || "Login failed";
-      // Provide helpful error message
-      if (errorMessage.includes("User not found") || errorMessage.includes("Invalid email") || errorMessage.includes("Invalid password")) {
-        setError(`${errorMessage}. Make sure test users are created first using the pilotSetup.createPilotUsers mutation.`);
+        // Signup
+        const result = await signup({
+          email: email.trim(),
+          password: password.trim(),
+          role: role,
+        });
+
+        // Store user info in localStorage
+        localStorage.setItem("pilot_user", JSON.stringify(result));
+        
+        // Redirect to dashboard
+        router.push("/");
       } else {
-        setError(errorMessage || "An unexpected error occurred. Please check the browser console for details.");
+        // Login
+        const result = await login({
+          email: email.trim(),
+          password: password.trim(),
+        });
+
+        // Store user info in localStorage
+        localStorage.setItem("pilot_user", JSON.stringify(result));
+        
+        // Redirect to dashboard
+        router.push("/");
       }
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      const errorMessage = err.message || (isSignup ? "Signup failed" : "Login failed");
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -87,12 +105,69 @@ export default function LoginPage() {
         maxWidth: "400px",
         width: "100%"
       }}>
-        <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem", color: "#1a1a1a" }}>
+        <h1 style={{ 
+          fontSize: "1.8rem", 
+          marginBottom: "0.5rem", 
+          color: "#2c2c2c",
+          fontFamily: '"Montserrat", sans-serif',
+          fontWeight: "800",
+          letterSpacing: "-0.02em",
+          textTransform: "uppercase"
+        }}>
           Farm2Market Uganda
         </h1>
-        <p style={{ color: "#666", marginBottom: "2rem", fontSize: "0.9rem" }}>
-          {deploymentMode === "dev" ? "Development" : "Pilot"} Login - All test users share the same password
+        <p style={{ 
+          color: "#2e7d32", 
+          marginBottom: "1.5rem", 
+          fontSize: "0.9rem", 
+          fontWeight: "600",
+          fontFamily: '"Montserrat", sans-serif',
+          letterSpacing: "0.1em",
+          textTransform: "uppercase"
+        }}>
+          Farm. Trade. Grow.
         </p>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #e0e0e0" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignup(false);
+              setError(null);
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "transparent",
+              border: "none",
+              borderBottom: isSignup ? "none" : "2px solid #1976d2",
+              color: isSignup ? "#666" : "#1976d2",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              fontWeight: isSignup ? "400" : "600"
+            }}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignup(true);
+              setError(null);
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              background: "transparent",
+              border: "none",
+              borderBottom: isSignup ? "2px solid #1976d2" : "none",
+              color: isSignup ? "#1976d2" : "#666",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              fontWeight: isSignup ? "600" : "400"
+            }}
+          >
+            Sign Up
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "1rem" }}>
@@ -111,11 +186,36 @@ export default function LoginPage() {
                 borderRadius: "6px",
                 fontSize: "1rem"
               }}
-              placeholder="user@example.com"
+              placeholder="your@email.com"
             />
           </div>
 
-          <div style={{ marginBottom: "1.5rem" }}>
+          {isSignup && (
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", color: "#333", fontWeight: "500" }}>
+                I am a
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as "farmer" | "trader" | "buyer")}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                  background: "#fff"
+                }}
+              >
+                <option value="farmer">Farmer</option>
+                <option value="trader">Trader</option>
+                <option value="buyer">Buyer</option>
+              </select>
+            </div>
+          )}
+
+          <div style={{ marginBottom: isSignup ? "1rem" : "1.5rem" }}>
             <label style={{ display: "block", marginBottom: "0.5rem", color: "#333", fontWeight: "500" }}>
               Password
             </label>
@@ -131,12 +231,37 @@ export default function LoginPage() {
                 borderRadius: "6px",
                 fontSize: "1rem"
               }}
-              placeholder="Shared pilot password"
+              placeholder={isSignup ? "Create a password (min. 6 characters)" : "Enter your password"}
+              minLength={isSignup ? 6 : undefined}
             />
-            <p style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-              Shared password: <strong>Farm2Market2024</strong>
-            </p>
+            {isSignup && (
+              <p style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
+                Password must be at least 6 characters long
+              </p>
+            )}
           </div>
+
+          {isSignup && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", color: "#333", fontWeight: "500" }}>
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: "1rem"
+                }}
+                placeholder="Confirm your password"
+              />
+            </div>
+          )}
 
           {error && (
             <div style={{
@@ -166,21 +291,30 @@ export default function LoginPage() {
               cursor: loading ? "not-allowed" : "pointer"
             }}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? (isSignup ? "Creating account..." : "Logging in...") : (isSignup ? "Create Account" : "Login")}
           </button>
         </form>
 
-        <div style={{
-          marginTop: "2rem",
-          padding: "1rem",
-          background: deploymentMode === "dev" ? "#e3f2fd" : "#fff3cd",
-          borderRadius: "6px",
-          border: `1px solid ${deploymentMode === "dev" ? "#2196f3" : "#ffc107"}`
-        }}>
-          <p style={{ margin: 0, fontSize: "0.85rem", color: deploymentMode === "dev" ? "#1565c0" : "#856404" }}>
-            ⚠️ <strong>{getDeploymentModeLabel()} Mode:</strong> This is a test environment. All users share the same password.
-          </p>
-        </div>
+        {!isSignup && (
+          <div style={{ marginTop: "1rem", textAlign: "center" }}>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                // TODO: Implement forgot password functionality
+                alert("Forgot password functionality will be available soon. Please contact support.");
+              }}
+              style={{
+                color: "#1976d2",
+                textDecoration: "none",
+                fontSize: "0.9rem"
+              }}
+            >
+              Forgot your password?
+            </a>
+          </div>
+        )}
+
       </div>
     </main>
   );

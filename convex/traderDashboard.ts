@@ -9,8 +9,8 @@
 
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { calculateTraderExposureInternal } from "./utils";
-import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY } from "./constants";
+import { calculateTraderExposureInternal, getStorageFeeRate } from "./utils";
+import { MAX_TRADER_EXPOSURE_UGX } from "./constants";
 
 /**
  * Get capital ledger vs profit ledger breakdown
@@ -309,14 +309,15 @@ export const getInventoryWithProjectedLoss = query({
         const daysInStorage = (now - inv.storageStartTime) / (1000 * 60 * 60 * 24);
         const fullDays = Math.floor(daysInStorage);
 
-        // Calculate projected kilo loss (using default rate)
+        // Calculate projected kilo loss (using current rate from system settings)
         // Rate is per 100kg block per day
+        const storageFeeRate = await getStorageFeeRate({ db: ctx.db });
         const blocks = inv.totalKilos / 100; // Number of 100kg blocks
-        const projectedKilosLost = blocks * DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY * fullDays;
+        const projectedKilosLost = blocks * storageFeeRate * fullDays;
         const projectedKilosRemaining = Math.max(0, inv.totalKilos - projectedKilosLost);
 
         // Project future loss (next 7 days)
-        const projectedLossNext7Days = blocks * DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY * 7;
+        const projectedLossNext7Days = blocks * storageFeeRate * 7;
         const projectedKilosAfter7Days = Math.max(0, projectedKilosRemaining - projectedLossNext7Days);
 
         // Get original listing info (for context, no farmer identity)
@@ -345,7 +346,7 @@ export const getInventoryWithProjectedLoss = query({
           projectedLossNext7Days: Math.round(projectedLossNext7Days * 100) / 100,
           projectedKilosAfter7Days: Math.round(projectedKilosAfter7Days * 100) / 100,
           // Storage fee rate (for reference)
-          storageFeeRate: DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY,
+          storageFeeRate: storageFeeRate,
           // Original price (for context, no farmer identity)
           originalPricePerKilo: originalPricePerKilo,
         };
@@ -356,6 +357,9 @@ export const getInventoryWithProjectedLoss = query({
     const totalOriginalKilos = inventoryWithProjection.reduce((sum, inv) => sum + inv.originalKilos, 0);
     const totalProjectedLoss = inventoryWithProjection.reduce((sum, inv) => sum + inv.projectedKilosLost, 0);
     const totalProjectedRemaining = inventoryWithProjection.reduce((sum, inv) => sum + inv.projectedKilosRemaining, 0);
+
+    // Get current storage fee rate for display
+    const storageFeeRate = await getStorageFeeRate({ db: ctx.db });
 
     return {
       inventory: inventoryWithProjection,
@@ -372,7 +376,28 @@ export const getInventoryWithProjectedLoss = query({
             ) / 100
           : 0,
       },
+      storageFeeRate: storageFeeRate, // Current kilo-shaving rate
       currentTime: now,
     };
+  },
+});
+
+/**
+ * Get current storage fee rate (kilo-shaving rate)
+ * Returns the current storage fee rate for display in trader dashboard
+ */
+export const getTraderStorageFeeRate = query({
+  args: {
+    traderId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a trader
+    const user = await ctx.db.get(args.traderId);
+    if (!user || user.role !== "trader") {
+      throw new Error("User is not a trader");
+    }
+
+    const rate = await getStorageFeeRate({ db: ctx.db });
+    return { rateKgPerDay: rate };
   },
 });

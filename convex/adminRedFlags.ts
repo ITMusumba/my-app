@@ -28,8 +28,8 @@
 
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { calculateTraderExposureInternal } from "./utils";
-import { MAX_TRADER_EXPOSURE_UGX, DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY, BUYER_PICKUP_SLA_MS } from "./constants";
+import { calculateTraderExposureInternal, getStorageFeeRate } from "./utils";
+import { MAX_TRADER_EXPOSURE_UGX, BUYER_PICKUP_SLA_MS } from "./constants";
 
 /**
  * Verify user is admin
@@ -259,10 +259,11 @@ export const getHighStorageLossInventory = query({
         const daysInStorage = (now - inv.storageStartTime) / (1000 * 60 * 60 * 24);
         const fullDays = Math.floor(daysInStorage);
 
-        // Calculate projected kilo loss (using default rate)
+        // Calculate projected kilo loss (using current rate from system settings)
         // Rate is per 100kg block per day
+        const storageFeeRate = await getStorageFeeRate({ db: ctx.db });
         const blocks = inv.totalKilos / 100; // Number of 100kg blocks
-        const projectedKilosLost = blocks * DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY * fullDays;
+        const projectedKilosLost = blocks * storageFeeRate * fullDays;
         const lossPercent = (projectedKilosLost / inv.totalKilos) * 100;
 
         // Get original listing info (for context)
@@ -517,12 +518,15 @@ export const getRedFlagsSummary = query({
       .withIndex("by_status", (q) => q.eq("status", "in_storage"))
       .collect();
 
+    // Get storage fee rate once (same for all inventory)
+    const storageFeeRate = await getStorageFeeRate({ db: ctx.db });
+    
     let highLossCount = 0;
     for (const inv of allInventory) {
       const daysInStorage = (now - inv.storageStartTime) / (1000 * 60 * 60 * 24);
       const fullDays = Math.floor(daysInStorage);
       const blocks = inv.totalKilos / 100;
-      const projectedKilosLost = blocks * DEFAULT_STORAGE_FEE_RATE_KG_PER_DAY * fullDays;
+      const projectedKilosLost = blocks * storageFeeRate * fullDays;
       const lossPercent = (projectedKilosLost / inv.totalKilos) * 100;
       if (lossPercent >= 10 || projectedKilosLost >= 5) {
         highLossCount++;

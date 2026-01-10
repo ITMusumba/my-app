@@ -98,12 +98,81 @@ function inferRoleFromEmail(email: string): "farmer" | "trader" | "buyer" | "adm
 }
 
 /**
- * Login with email and shared pilot password
- * ⚠️ PILOT ONLY - Auto-creates users on first login
+ * Signup - Create a new user account
  * 
  * Behavior:
- * - Validates password against shared pilot password
- * - Auto-creates user if they don't exist
+ * - Validates email and password
+ * - Creates user with specified role
+ * - Returns user info on success
+ */
+export const signup = mutation({
+  args: {
+    email: v.string(),
+    password: v.string(),
+    role: v.union(
+      v.literal("farmer"),
+      v.literal("trader"),
+      v.literal("buyer")
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Validate email format
+    if (!args.email.includes("@") || !args.email.includes(".")) {
+      throw new Error("Invalid email format");
+    }
+
+    // Validate password length
+    if (args.password.length < 6) {
+      throw new Error("Password must be at least 6 characters long");
+    }
+
+    // Check if user already exists
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email.trim().toLowerCase()))
+      .first();
+
+    if (existing) {
+      throw new Error("User with this email already exists");
+    }
+
+    // Generate alias
+    const alias = generateAlias(args.role);
+    
+    // Hash the password
+    const passwordHash = simpleHash(args.password.trim());
+
+    // Create user
+    const userId = await ctx.db.insert("users", {
+      email: args.email.trim().toLowerCase(),
+      role: args.role,
+      alias,
+      state: "active",
+      createdAt: Date.now(),
+      lastActiveAt: Date.now(),
+      passwordHash,
+    });
+
+    // Fetch the created user
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      throw new Error("Failed to create user");
+    }
+
+    // Return user info
+    return {
+      userId: user._id,
+      alias: user.alias,
+      role: user.role,
+    };
+  },
+});
+
+/**
+ * Login with email and password
+ * 
+ * Behavior:
+ * - Validates password against stored hash
  * - Returns user info on success
  */
 export const login = mutation({
@@ -112,52 +181,33 @@ export const login = mutation({
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate shared pilot password (trim whitespace)
-    if (args.password.trim() !== PILOT_SHARED_PASSWORD) {
-      throw new Error("Invalid password");
-    }
-
-    // Try to find existing user
-    let user = await ctx.db
+    // Find user by email
+    const user = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_email", (q) => q.eq("email", args.email.trim().toLowerCase()))
       .first();
 
-    // Auto-create user if missing (PILOT MODE)
     if (!user) {
-      // Infer role from email
-      const role = inferRoleFromEmail(args.email);
-      
-      // Generate alias
-      const alias = generateAlias(role);
-      
-      // Hash the shared pilot password
-      const passwordHash = simpleHash(PILOT_SHARED_PASSWORD);
-
-      // Create user
-      const userId = await ctx.db.insert("users", {
-        email: args.email,
-        role,
-        alias,
-        state: "active", // Initial state for new users
-        createdAt: Date.now(),
-        lastActiveAt: Date.now(),
-        passwordHash,
-      });
-
-      // Fetch the created user
-      user = await ctx.db.get(userId);
-      if (!user) {
-        throw new Error("Failed to create user");
-      }
-    } else {
-      // Update last active timestamp for existing user
-      await ctx.db.patch(user._id, {
-        lastActiveAt: Date.now(),
-      });
+      throw new Error("Invalid email or password");
     }
 
-    // Return user info (alias only, not email)
+    // Validate password
+    const passwordHash = simpleHash(args.password.trim());
+    if (user.passwordHash !== passwordHash) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Check if user is active
+    if (user.state !== "active") {
+      throw new Error("Account is not active. Please contact support.");
+    }
+
+    // Update last active timestamp
+    await ctx.db.patch(user._id, {
+      lastActiveAt: Date.now(),
+    });
+
+    // Return user info
     return {
       userId: user._id,
       alias: user.alias,

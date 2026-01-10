@@ -586,3 +586,29 @@ export const getBuyerPickupDeadlines = query({
     };
   },
 });
+
+/**
+ * Get all users (admin only)
+ * 
+ * Returns all users in the system with their roles and aliases.
+ * Used for admin operations like sending notifications to selected users.
+ */
+export const getAllUsers = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    const users = await ctx.db.query("users").collect();
+
+    return users.map((user) => ({
+      userId: user._id,
+      email: user.email,
+      role: user.role,
+      alias: user.alias,
+      state: user.state,
+      customSpendCap: user.customSpendCap,
+    }));
+  },
+});

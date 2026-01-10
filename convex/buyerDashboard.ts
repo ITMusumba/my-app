@@ -22,6 +22,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { BUYER_BLOCK_SIZE_KG, BUYER_PICKUP_SLA_MS } from "./constants";
+import { getStorageFeeRate, getBuyerServiceFeePercentage } from "./utils";
 
 /**
  * Get available inventory for buyers
@@ -88,12 +89,59 @@ export const getAvailableInventory = query({
       byProduceType.get(inv.produceType)!.push(inv);
     }
 
+    // Get current storage fee rate for display (kilo-shaving rate)
+    const storageFeeRate = await getStorageFeeRate({ db: ctx.db });
+    // Get current service fee percentage for display
+    const serviceFeePercentage = await getBuyerServiceFeePercentage({ db: ctx.db });
+
     return {
       totalAvailable: enriched.length,
       totalKilos: enriched.reduce((sum, inv) => sum + inv.totalKilos, 0),
       byProduceType: Object.fromEntries(byProduceType),
       inventory: enriched,
+      storageFeeRate: storageFeeRate, // Current kilo-shaving rate (visible to buyers before purchase)
+      serviceFeePercentage: serviceFeePercentage, // Current service fee percentage
     };
+  },
+});
+
+/**
+ * Get current storage fee rate (kilo-shaving rate)
+ * Returns the current storage fee rate for display in buyer dashboard
+ */
+export const getBuyerStorageFeeRate = query({
+  args: {
+    buyerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a buyer
+    const user = await ctx.db.get(args.buyerId);
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    const rate = await getStorageFeeRate({ db: ctx.db });
+    return { rateKgPerDay: rate };
+  },
+});
+
+/**
+ * Get current buyer service fee percentage
+ * Returns the current service fee percentage for display in buyer dashboard
+ */
+export const getBuyerServiceFeePercentageQuery = query({
+  args: {
+    buyerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a buyer
+    const user = await ctx.db.get(args.buyerId);
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    const fee = await getBuyerServiceFeePercentage({ db: ctx.db });
+    return { serviceFeePercentage: fee };
   },
 });
 
@@ -329,6 +377,54 @@ export const getBuyerActiveOrders = query({
       total: enriched.length,
       overdue: enriched.filter((p) => p.isPastDeadline).length,
       orders: enriched,
+    };
+  },
+});
+
+/**
+ * Get buyer's wallet balance
+ * 
+ * Shows buyer's current wallet balance from ledger entries.
+ * Buyers use the same walletLedger system as traders.
+ */
+export const getBuyerWalletBalance = query({
+  args: {
+    buyerId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Verify user is a buyer
+    const user = await ctx.db.get(args.buyerId);
+    if (!user || user.role !== "buyer") {
+      throw new Error("User is not a buyer");
+    }
+
+    // Get all ledger entries for this buyer
+    const entries = await ctx.db
+      .query("walletLedger")
+      .withIndex("by_user", (q) => q.eq("userId", args.buyerId))
+      .order("desc")
+      .collect();
+
+    // Calculate balance
+    let balance = 0;
+    for (const entry of entries) {
+      if (entry.type === "capital_deposit") {
+        balance += entry.amount;
+      } else if (entry.type === "capital_lock") {
+        balance -= entry.amount;
+      } else if (entry.type === "capital_unlock") {
+        balance += entry.amount;
+      }
+    }
+
+    // Get the latest entry for current balance
+    const latestEntry = entries[0];
+    const currentBalance = latestEntry?.balanceAfter || balance;
+
+    return {
+      balance: currentBalance,
+      totalDeposits: entries.filter((e) => e.type === "capital_deposit").reduce((sum, e) => sum + e.amount, 0),
+      totalEntries: entries.length,
     };
   },
 });
