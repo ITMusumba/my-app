@@ -523,7 +523,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
 
         {inventory === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
-        ) : inventory.inventory.length === 0 ? (
+        ) : !inventory || !inventory.inventory || inventory.inventory.length === 0 ? (
           <p style={{ color: "#666" }}>No inventory available</p>
         ) : (
           <>
@@ -656,7 +656,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {inventory.inventory.map((item: any, index: number) => {
+                  {inventory?.inventory?.map((item: any, index: number) => {
                     const itemId = item.inventoryId;
                     const isPurchasing = purchasing === itemId;
                     const canPurchase = windowStatus?.isOpen && !isPurchasing;
@@ -943,7 +943,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
         </h3>
         {orders === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
-        ) : orders.orders.length === 0 ? (
+        ) : !orders || !orders.orders || orders.orders.length === 0 ? (
           <p style={{ color: "#666" }}>No orders yet</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
