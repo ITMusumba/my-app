@@ -112,8 +112,8 @@ export const login = mutation({
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate shared pilot password
-    if (args.password !== PILOT_SHARED_PASSWORD) {
+    // Validate shared pilot password (trim whitespace)
+    if (args.password.trim() !== PILOT_SHARED_PASSWORD) {
       throw new Error("Invalid password");
     }
 

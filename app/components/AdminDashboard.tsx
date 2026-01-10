@@ -13,7 +13,7 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
   const redFlags = useQuery(api.adminRedFlags.getRedFlagsSummary, { adminId: userId });
   const allUTIDs = useQuery(api.introspection.getAllActiveUTIDs, { adminId: userId });
   const pilotMode = useQuery(api.pilotMode.getPilotMode);
-  const purchaseWindowStatus = useQuery(api.buyerDashboard.getPurchaseWindowStatus, { buyerId: userId });
+  const purchaseWindowStatus = useQuery(api.admin.getPurchaseWindowStatus, { adminId: userId });
   
   const openPurchaseWindow = useMutation(api.admin.openPurchaseWindow);
   const closePurchaseWindow = useMutation(api.admin.closePurchaseWindow);

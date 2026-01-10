@@ -129,6 +129,50 @@ export const closePurchaseWindow = mutation({
 });
 
 /**
+ * Get purchase window status (admin only)
+ * Admin can check purchase window status for control purposes
+ */
+export const getPurchaseWindowStatus = query({
+  args: {
+    adminId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await verifyAdmin(ctx, args.adminId);
+
+    // Get current purchase window (if open)
+    const purchaseWindow = await ctx.db
+      .query("purchaseWindows")
+      .withIndex("by_status", (q: any) => q.eq("isOpen", true))
+      .first();
+
+    if (!purchaseWindow) {
+      return {
+        isOpen: false,
+        openedAt: null,
+        openedBy: null,
+        openedByAlias: null,
+        utid: null,
+        closedAt: null,
+        reason: null,
+      };
+    }
+
+    // Get admin alias
+    const admin = await ctx.db.get(purchaseWindow.openedBy);
+
+    return {
+      isOpen: purchaseWindow.isOpen,
+      openedAt: purchaseWindow.openedAt,
+      openedBy: purchaseWindow.openedBy,
+      openedByAlias: admin?.alias || null,
+      utid: purchaseWindow.utid,
+      closedAt: purchaseWindow.closedAt || null,
+      reason: purchaseWindow.reason || null,
+    };
+  },
+});
+
+/**
  * Verify delivery (admin only)
  * Admin marks delivery as delivered, late, or cancelled
  */
