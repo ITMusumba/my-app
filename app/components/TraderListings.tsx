@@ -112,6 +112,9 @@ export function TraderListings({ userId }: TraderListingsProps) {
                   <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#999" }}>
                     Farmer: {listing.farmerAlias} | Listed: {formatDate(listing.createdAt)}
                   </div>
+                  <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+                    UTID: {listing.utid}
+                  </div>
                 </div>
               </div>
 

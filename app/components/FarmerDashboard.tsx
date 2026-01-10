@@ -62,13 +62,16 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                 borderRadius: "8px",
                 border: "1px solid #e0e0e0"
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "0.5rem" }}>
+                <div style={{ marginBottom: "0.5rem" }}>
                   <div>
-                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                    <div style={{ fontWeight: "600", marginBottom: "0.25rem", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>
                       {listing.produceType} - {listing.totalKilos} kg
                     </div>
-                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                    <div style={{ fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)", color: "#666" }}>
                       Price: UGX {listing.pricePerKilo.toLocaleString()}/kg
+                    </div>
+                    <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      UTID: {listing.utid}
                     </div>
                   </div>
                 </div>
@@ -151,11 +154,14 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                   Deadline: {formatDate(delivery.deadline)}
                 </div>
                 <div style={{
-                  fontSize: "0.9rem",
+                  fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
                   fontWeight: "600",
                   color: delivery.timeRemainingMs <= 0 ? "#c62828" : "#2e7d32"
                 }}>
                   {formatTimeRemaining(delivery.deadline)}
+                </div>
+                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+                  UTID: {delivery.lockUtid}
                 </div>
               </div>
             ))}

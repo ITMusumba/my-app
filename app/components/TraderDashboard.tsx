@@ -143,6 +143,31 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
                   borderRadius: "8px",
                   border: "1px solid #e0e0e0"
                 }}>
+                  {/* Header with UTID */}
+                  <div style={{ 
+                    marginBottom: "1rem", 
+                    paddingBottom: "0.75rem", 
+                    borderBottom: "1px solid #e0e0e0" 
+                  }}>
+                    <div style={{ 
+                      fontSize: "clamp(0.7rem, 2vw, 0.75rem)", 
+                      color: "#666", 
+                      marginBottom: "0.25rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>
+                      Transaction UTID
+                    </div>
+                    <div style={{ 
+                      fontSize: "clamp(0.8rem, 2.5vw, 0.9rem)", 
+                      color: "#1a1a1a", 
+                      fontFamily: "monospace",
+                      fontWeight: "600",
+                      wordBreak: "break-all"
+                    }}>
+                      {item.utid}
+                    </div>
+                  </div>
 
                   {/* Produce Type and Quantity */}
                   <div style={{ marginBottom: "1rem" }}>
@@ -216,6 +241,45 @@ export function TraderDashboard({ userId }: TraderDashboardProps) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Active Transactions */}
+      <div style={{
+        marginBottom: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
+        background: "#fff",
+        borderRadius: "12px",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        border: "1px solid #e0e0e0"
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
+          Active Transactions
+        </h3>
+        {activeUTIDs === undefined ? (
+          <p style={{ color: "#999" }}>Loading...</p>
+        ) : activeUTIDs.utids.length === 0 ? (
+          <p style={{ color: "#666" }}>No active transactions</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {activeUTIDs.utids.map((utid: any, index: number) => (
+              <div key={index} style={{
+                padding: "clamp(0.6rem, 2vw, 0.75rem)",
+                background: "#f5f5f5",
+                borderRadius: "6px",
+                fontSize: "clamp(0.8rem, 2.5vw, 0.85rem)",
+                fontFamily: "monospace",
+                wordBreak: "break-all"
+              }}>
+                <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
+                  {utid.utid}
+                </div>
+                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#666" }}>
+                  Type: {utid.type} | Status: {utid.status || "active"}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

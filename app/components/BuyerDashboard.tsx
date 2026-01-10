@@ -58,7 +58,7 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
 
       setPurchaseMessage({
         type: "success",
-        text: `Purchase successful! You have 48 hours to pick up ${kilos} kg.`,
+        text: `Purchase successful! UTID: ${result.purchaseUtid}. You have 48 hours to pick up ${kilos} kg.`,
       });
 
       // Clear input
@@ -184,6 +184,14 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                         <div style={{ fontWeight: "600", color: "#1a1a1a", fontSize: "clamp(0.9rem, 3vw, 1rem)" }}>{item.traderAlias}</div>
                       </div>
                     </div>
+                    <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #e0e0e0" }}>
+                      <div style={{ color: "#999", fontSize: "clamp(0.7rem, 2vw, 0.75rem)", marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Transaction UTID
+                      </div>
+                      <div style={{ fontFamily: "monospace", fontSize: "clamp(0.75rem, 2.5vw, 0.85rem)", color: "#666", wordBreak: "break-all" }}>
+                        {item.inventoryUtid}
+                      </div>
+                    </div>
                   </div>
 
                   {windowStatus?.isOpen ? (
@@ -293,11 +301,14 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
                   Pickup deadline: {formatDate(order.pickupSLA)}
                 </div>
                 <div style={{
-                  fontSize: "0.9rem",
+                  fontSize: "clamp(0.85rem, 2.5vw, 0.9rem)",
                   fontWeight: "600",
                   color: order.isPastDeadline ? "#c62828" : "#2e7d32"
                 }}>
                   {order.isPastDeadline ? `${order.hoursOverdue.toFixed(1)}h overdue` : `${order.hoursRemaining.toFixed(1)}h remaining`}
+                </div>
+                <div style={{ fontSize: "clamp(0.7rem, 2vw, 0.75rem)", color: "#999", marginTop: "0.5rem", fontFamily: "monospace", wordBreak: "break-all" }}>
+                  UTID: {order.purchaseUtid}
                 </div>
               </div>
             ))}
