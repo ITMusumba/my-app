@@ -7,6 +7,7 @@ import { formatUgandaDateTime, formatUgandaTimeOnly, getUgandaTime } from "../ut
 import { useState } from "react";
 import { exportToExcel, exportToPDF, formatUTIDDataForExport } from "../utils/exportUtils";
 import { StorageLocationsManager } from "./StorageLocationsManager";
+import { DeliveryConfirmationForm } from "./DeliveryConfirmationForm";
 
 interface AdminDashboardProps {
   userId: Id<"users">;
@@ -594,11 +595,15 @@ export function AdminDashboard({ userId }: AdminDashboardProps) {
           <h4 style={{ marginBottom: "1rem", fontSize: "1.1rem", color: "#1a1a1a" }}>
             Confirm Delivery to Storage by UTID
           </h4>
-          <DeliveryConfirmationForm
-            allUTIDs={allUTIDs}
-            confirmDelivery={confirmDeliveryToStorageByUTID}
-            adminId={userId}
-          />
+          {allUTIDs === undefined ? (
+            <p style={{ color: "#999" }}>Loading UTIDs...</p>
+          ) : (
+            <DeliveryConfirmationForm
+              allUTIDs={allUTIDs}
+              confirmDelivery={confirmDeliveryToStorageByUTID}
+              adminId={userId}
+            />
+          )}
         </div>
       </div>
 
