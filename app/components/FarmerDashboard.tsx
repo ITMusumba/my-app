@@ -122,13 +122,13 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
 
       {/* Delivery Deadlines */}
       <div style={{
-        padding: "1.5rem",
+        padding: "clamp(1rem, 3vw, 1.5rem)",
         background: "#fff",
         borderRadius: "12px",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
         border: "1px solid #e0e0e0"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "clamp(1.1rem, 3.5vw, 1.3rem)", color: "#1a1a1a" }}>
           Delivery Deadlines
         </h3>
         {deliveryDeadlines === undefined ? (
@@ -156,9 +156,6 @@ export function FarmerDashboard({ userId }: FarmerDashboardProps) {
                   color: delivery.timeRemainingMs <= 0 ? "#c62828" : "#2e7d32"
                 }}>
                   {formatTimeRemaining(delivery.deadline)}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem", fontFamily: "monospace" }}>
-                  UTID: {delivery.lockUtid}
                 </div>
               </div>
             ))}
