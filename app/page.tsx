@@ -23,11 +23,26 @@ export default function Home() {
   // Check if user is logged in (pilot mode)
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("pilot_user");
-      if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        // Redirect to login if not logged in
+      try {
+        const stored = localStorage.getItem("pilot_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Validate user object has required properties
+          if (parsed && parsed.userId && parsed.role && parsed.alias) {
+            setUser(parsed);
+          } else {
+            // Invalid user data, clear and redirect
+            localStorage.removeItem("pilot_user");
+            router.push("/login");
+          }
+        } else {
+          // Redirect to login if not logged in
+          router.push("/login");
+        }
+      } catch (error) {
+        // JSON parse failed, clear corrupted data
+        console.error("Failed to parse user data:", error);
+        localStorage.removeItem("pilot_user");
         router.push("/login");
       }
     }
@@ -35,7 +50,7 @@ export default function Home() {
 
   
   // Show loading if checking auth
-  if (!user) {
+  if (!user || !user.userId || !user.role || !user.alias) {
     return (
       <main style={{ padding: "2rem", textAlign: "center" }}>
         <p>Loading...</p>
@@ -91,7 +106,7 @@ export default function Home() {
             marginBottom: "0.25rem",
             fontWeight: "500"
           }}>
-            Logged in as: <strong style={{ color: "#1a1a1a" }}>{user.alias}</strong>
+            Logged in as: <strong style={{ color: "#1a1a1a" }}>{user?.alias || "Unknown"}</strong>
           </p>
           <p style={{ 
             color: "#555", 
@@ -99,7 +114,7 @@ export default function Home() {
             marginBottom: "0.25rem",
             textTransform: "capitalize"
           }}>
-            Role: {user.role}
+            Role: {user?.role || "unknown"}
           </p>
           <button
             onClick={() => {
@@ -126,10 +141,10 @@ export default function Home() {
       <div style={{
         marginTop: "1rem"
       }}>
-        {user.role === "admin" && <AdminDashboard userId={user.userId as Id<"users">} />}
-        {user.role === "trader" && <TraderDashboard userId={user.userId as Id<"users">} />}
-        {user.role === "farmer" && <FarmerDashboard userId={user.userId as Id<"users">} />}
-        {user.role === "buyer" && <BuyerDashboard userId={user.userId as Id<"users">} />}
+        {user?.role === "admin" && user?.userId && <AdminDashboard userId={user.userId as Id<"users">} />}
+        {user?.role === "trader" && user?.userId && <TraderDashboard userId={user.userId as Id<"users">} />}
+        {user?.role === "farmer" && user?.userId && <FarmerDashboard userId={user.userId as Id<"users">} />}
+        {user?.role === "buyer" && user?.userId && <BuyerDashboard userId={user.userId as Id<"users">} />}
       </div>
     </main>
   );
