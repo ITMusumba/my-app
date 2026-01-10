@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
+import { useState } from "react";
 
 interface BuyerDashboardProps {
   userId: Id<"users">;
@@ -12,6 +13,11 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
   const inventory = useQuery(api.buyerDashboard.getAvailableInventory, { buyerId: userId });
   const windowStatus = useQuery(api.buyerDashboard.getPurchaseWindowStatus, { buyerId: userId });
   const orders = useQuery(api.buyerDashboard.getBuyerOrders, { buyerId: userId });
+  const createPurchase = useMutation(api.buyers.createBuyerPurchase);
+  
+  const [purchasing, setPurchasing] = useState<Id<"traderInventory"> | null>(null);
+  const [purchaseMessage, setPurchaseMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [kilosInput, setKilosInput] = useState<{ [key: string]: string }>({});
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
@@ -24,6 +30,52 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     return `${hours}h ${minutes}m remaining`;
+  };
+
+  const handlePurchase = async (inventoryId: Id<"traderInventory">, availableKilos: number) => {
+    const kilosStr = kilosInput[inventoryId] || "";
+    const kilos = parseFloat(kilosStr);
+
+    if (!kilosStr || isNaN(kilos) || kilos <= 0) {
+      setPurchaseMessage({ type: "error", text: "Please enter a valid quantity (kilos)" });
+      return;
+    }
+
+    if (kilos > availableKilos) {
+      setPurchaseMessage({ type: "error", text: `Requested quantity (${kilos} kg) exceeds available inventory (${availableKilos} kg)` });
+      return;
+    }
+
+    setPurchasing(inventoryId);
+    setPurchaseMessage(null);
+
+    try {
+      const result = await createPurchase({
+        buyerId: userId,
+        inventoryId: inventoryId,
+        kilos: kilos,
+      });
+
+      setPurchaseMessage({
+        type: "success",
+        text: `Purchase successful! UTID: ${result.purchaseUtid}. You have 48 hours to pick up ${kilos} kg.`,
+      });
+
+      // Clear input
+      setKilosInput({ ...kilosInput, [inventoryId]: "" });
+
+      // Clear message after delay
+      setTimeout(() => {
+        setPurchaseMessage(null);
+      }, 10000);
+    } catch (error: any) {
+      setPurchaseMessage({
+        type: "error",
+        text: `Purchase failed: ${error.message}`,
+      });
+    } finally {
+      setPurchasing(null);
+    }
   };
 
   return (
@@ -82,44 +134,130 @@ export function BuyerDashboard({ userId }: BuyerDashboardProps) {
         <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.3rem", color: "#1a1a1a" }}>
           Available Inventory
         </h3>
+        
+        {purchaseMessage && (
+          <div style={{
+            padding: "1rem",
+            marginBottom: "1.5rem",
+            background: purchaseMessage.type === "success" ? "#e8f5e9" : "#ffebee",
+            borderRadius: "8px",
+            border: `1px solid ${purchaseMessage.type === "success" ? "#4caf50" : "#ef5350"}`,
+            color: purchaseMessage.type === "success" ? "#2e7d32" : "#c62828",
+          }}>
+            {purchaseMessage.text}
+          </div>
+        )}
+
         {inventory === undefined ? (
           <p style={{ color: "#999" }}>Loading...</p>
         ) : inventory.inventory.length === 0 ? (
           <p style={{ color: "#666" }}>No inventory available</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {inventory.inventory.map((item: any, index: number) => (
-              <div key={index} style={{
-                padding: "1rem",
-                background: "#f5f5f5",
-                borderRadius: "8px",
-                border: "1px solid #e0e0e0"
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontWeight: "600", marginBottom: "0.25rem" }}>
-                      {item.produceType} - {item.totalKilos} kg
+            {inventory.inventory.map((item: any, index: number) => {
+              const itemId = item.inventoryId;
+              const isPurchasing = purchasing === itemId;
+              const canPurchase = windowStatus?.isOpen && !isPurchasing;
+              
+              return (
+                <div key={index} style={{
+                  padding: "1.5rem",
+                  background: "#f9f9f9",
+                  borderRadius: "8px",
+                  border: "1px solid #e0e0e0"
+                }}>
+                  <div style={{ marginBottom: "1rem" }}>
+                    <div style={{ fontWeight: "600", marginBottom: "0.5rem", fontSize: "1.1rem" }}>
+                      {item.produceType}
                     </div>
-                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                      Available in {item.blocksAvailable} blocks of 100kg each
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.25rem" }}>
-                      Trader: {item.traderAlias}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", fontSize: "0.9rem", color: "#666" }}>
+                      <div>
+                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Available Quantity</div>
+                        <div style={{ fontWeight: "600", color: "#1976d2" }}>{item.totalKilos} kg</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Block Size</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.blockSize} kg blocks</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Trader</div>
+                        <div style={{ fontWeight: "600", color: "#1a1a1a" }}>{item.traderAlias}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#999", fontSize: "0.85rem" }}>Transaction UTID</div>
+                        <div style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "#666" }}>{item.inventoryUtid}</div>
+                      </div>
                     </div>
                   </div>
-                  <div style={{
-                    padding: "0.5rem 1rem",
-                    background: windowStatus?.isOpen ? "#1976d2" : "#ccc",
-                    color: "#fff",
-                    borderRadius: "6px",
-                    fontSize: "0.85rem",
-                    cursor: windowStatus?.isOpen ? "pointer" : "not-allowed"
-                  }}>
-                    {windowStatus?.isOpen ? "Purchase" : "Window Closed"}
-                  </div>
+
+                  {windowStatus?.isOpen ? (
+                    <div style={{ 
+                      padding: "1rem", 
+                      background: "#fff", 
+                      borderRadius: "6px",
+                      border: "1px solid #e0e0e0"
+                    }}>
+                      <div style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "#666" }}>
+                        <strong>Make Purchase:</strong> Enter quantity (kilos) to purchase
+                      </div>
+                      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.totalKilos}
+                          step="0.01"
+                          value={kilosInput[itemId] || ""}
+                          onChange={(e) => setKilosInput({ ...kilosInput, [itemId]: e.target.value })}
+                          placeholder="Enter kilos"
+                          disabled={isPurchasing}
+                          style={{
+                            padding: "0.75rem",
+                            border: "1px solid #ddd",
+                            borderRadius: "6px",
+                            fontSize: "0.9rem",
+                            width: "150px",
+                            fontFamily: "inherit"
+                          }}
+                        />
+                        <button
+                          onClick={() => handlePurchase(itemId, item.totalKilos)}
+                          disabled={isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0}
+                          style={{
+                            padding: "0.75rem 1.5rem",
+                            background: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "#ccc" : "#1976d2",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "6px",
+                            fontSize: "0.9rem",
+                            fontWeight: "600",
+                            cursor: isPurchasing || !kilosInput[itemId] || parseFloat(kilosInput[itemId] || "0") <= 0 ? "not-allowed" : "pointer"
+                          }}
+                        >
+                          {isPurchasing ? "Purchasing..." : "Purchase"}
+                        </button>
+                        <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                          Max: {item.totalKilos} kg
+                        </div>
+                      </div>
+                      <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.8rem", color: "#999" }}>
+                        ⚠️ You have 48 hours to pick up after purchase.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      padding: "1rem", 
+                      background: "#fff3cd", 
+                      borderRadius: "6px",
+                      border: "1px solid #ffc107",
+                      color: "#856404",
+                      fontSize: "0.9rem"
+                    }}>
+                      Purchase window is closed. Wait for admin to open it.
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
