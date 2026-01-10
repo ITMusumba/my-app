@@ -10,23 +10,24 @@ interface TraderListingsProps {
 }
 
 export function TraderListings({ userId }: TraderListingsProps) {
+  const [offering, setOffering] = useState<{ listingId: Id<"listings">; unitId: Id<"listingUnits"> | null } | null>(null);
+  const [offerPrice, setOfferPrice] = useState<string>("");
+  const [locking, setLocking] = useState<Id<"listingUnits"> | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   const listings = useQuery(api.listings.getActiveListings);
   const traderNegotiations = useQuery(api.negotiations.getTraderNegotiations, { traderId: userId });
   const acceptedNegotiations = useQuery(api.negotiations.getAcceptedNegotiations, { traderId: userId });
   const makeOffer = useMutation(api.negotiations.makeOffer);
   const acceptCounterOffer = useMutation(api.negotiations.acceptCounterOffer);
   const lockUnit = useMutation(api.payments.lockUnit);
+  
   // Get first available unit for the listing being offered on
   const listingDetails = useQuery(
     api.listings.getListingDetails,
     offering ? { listingId: offering.listingId } : "skip"
   );
   const firstAvailableUnit = listingDetails?.units?.find((u: any) => u.status === "available");
-  
-  const [offering, setOffering] = useState<{ listingId: Id<"listings">; unitId: Id<"listingUnits"> | null } | null>(null);
-  const [offerPrice, setOfferPrice] = useState<string>("");
-  const [locking, setLocking] = useState<Id<"listingUnits"> | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const formatUGX = (amount: number) => {
     return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX" }).format(amount);
