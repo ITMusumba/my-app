@@ -1,11 +1,11 @@
 "use client";
 
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orderTrackingId = searchParams.get("OrderTrackingId");
@@ -61,25 +61,40 @@ export default function PaymentCallbackPage() {
         {status === "loading" && (
           <>
             <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⏳</div>
-            <h2 style={{ marginBottom: "1rem", color: "#1a1a1a" }}>Verifying Payment...</h2>
-            <p style={{ color: "#666" }}>Please wait while we verify your payment.</p>
+            <h2 style={{ 
+              marginBottom: "1rem", 
+              color: "#2c2c2c",
+              fontFamily: '"Montserrat", sans-serif',
+              fontWeight: "700"
+            }}>Verifying Payment...</h2>
+            <p style={{ color: "#3d3d3d", fontFamily: '"Montserrat", sans-serif' }}>Please wait while we verify your payment.</p>
           </>
         )}
         
         {status === "success" && (
           <>
             <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✅</div>
-            <h2 style={{ marginBottom: "1rem", color: "#2e7d32" }}>Payment Successful!</h2>
-            <p style={{ color: "#666", marginBottom: "1rem" }}>{message}</p>
-            <p style={{ color: "#999", fontSize: "0.9rem" }}>You will be redirected shortly...</p>
+            <h2 style={{ 
+              marginBottom: "1rem", 
+              color: "#2e7d32",
+              fontFamily: '"Montserrat", sans-serif',
+              fontWeight: "700"
+            }}>Payment Successful!</h2>
+            <p style={{ color: "#3d3d3d", marginBottom: "1rem", fontFamily: '"Montserrat", sans-serif' }}>{message}</p>
+            <p style={{ color: "#999", fontSize: "0.9rem", fontFamily: '"Montserrat", sans-serif' }}>You will be redirected shortly...</p>
           </>
         )}
         
         {status === "error" && (
           <>
             <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>❌</div>
-            <h2 style={{ marginBottom: "1rem", color: "#d32f2f" }}>Payment Verification Failed</h2>
-            <p style={{ color: "#666", marginBottom: "1rem" }}>{message}</p>
+            <h2 style={{ 
+              marginBottom: "1rem", 
+              color: "#d32f2f",
+              fontFamily: '"Montserrat", sans-serif',
+              fontWeight: "700"
+            }}>Payment Verification Failed</h2>
+            <p style={{ color: "#3d3d3d", marginBottom: "1rem", fontFamily: '"Montserrat", sans-serif' }}>{message}</p>
             <button
               onClick={() => router.push("/")}
               style={{
@@ -90,7 +105,8 @@ export default function PaymentCallbackPage() {
                 borderRadius: "8px",
                 cursor: "pointer",
                 fontSize: "1rem",
-                fontWeight: "500"
+                fontWeight: "600",
+                fontFamily: '"Montserrat", sans-serif'
               }}
             >
               Return to Dashboard
@@ -99,5 +115,41 @@ export default function PaymentCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "100vh",
+        padding: "2rem",
+        background: "#f5f5f5"
+      }}>
+        <div style={{
+          background: "#fff",
+          padding: "2rem",
+          borderRadius: "12px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          maxWidth: "500px",
+          width: "100%",
+          textAlign: "center"
+        }}>
+          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⏳</div>
+          <h2 style={{ 
+            marginBottom: "1rem", 
+            color: "#2c2c2c",
+            fontFamily: '"Montserrat", sans-serif',
+            fontWeight: "700"
+          }}>Loading...</h2>
+        </div>
+      </div>
+    }>
+      <PaymentCallbackContent />
+    </Suspense>
   );
 }
